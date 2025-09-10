@@ -1,0 +1,2302 @@
+---
+title: "fruitandveggies"
+output: html_document
+---
+
+# 0.0.1    July 2022, serious stuff
+#           September 2025
+## Setup
+```{r}
+library(dplyr)
+library(survival)
+library(survminer)
+library(readxl)
+library(tidyr)
+
+
+source(file = "https://raw.githubusercontent.com/johnchaston/Gale2024/main/calculate_correlations.R")
+
+```
+
+
+```{r}
+# delete template sheet
+# delete rows
+# delete notes column
+
+## access files from here
+
+## test what the difference is between starve original and starve - andrew or matt, maybe look at the two different files? 
+
+## what is the rationale for filtered at line 436 - why do we lose, e.g., cucumber, etc? maybe that's all we had gnotobiotic data for? 
+
+## so - run on the "filtered" datasets for dev, starve, and dry weight.
+
+## then, run the gnotobiotic datasets only, but not filtered
+
+## look for relationships to microbiota composition
+
+## start finding major conclusiosn to draw, write out a section, and we'll piece through it. 
+
+
+# figure out how to analyze the data, and remember 
+
+wget -O FV_dev_JMC2.xlsx https://raw.githubusercontent.com/johnchaston/FruitAndVeggies/main/FV_dev_JMC2.xlsx
+
+
+```
+
+# Dev Data - Gn/Ax
+## Dev data - prep
+```{r}
+
+setwd('~/Dropbox/fruitandveggie/')
+read_in_data <- function(filepath, sheet_name) {
+starvation <- read_xlsx(filepath, sheet = sheet_name, skip = 5, col_names = T) %>%
+  reshape2::melt(id.vars = "vial")
+}
+
+starve_orig <- read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMCv2.xlsx',"Day1Page1") %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMCv2.xlsx',"Day1Page2")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMCv2.xlsx',"Day1Page3")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMCv2.xlsx',"Day1Page4")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMCv2.xlsx',"Day1Page5")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMCv2.xlsx',"Day1Page6")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMCv2.xlsx',"Day2Page1")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMCv2.xlsx',"Day2Page2")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMCv2.xlsx',"Day2Page3")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMCv2.xlsx',"Day2Page4")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMCv2.xlsx',"Day2Page5")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMCv2.xlsx',"Day2Page6")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMCv2.xlsx',"Day3Page1")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMCv2.xlsx',"Day3Page2")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMCv2.xlsx',"Day3Page3")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMCv2.xlsx',"Day3Page4")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMCv2.xlsx',"Day3Page5")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMCv2.xlsx',"Day3Page6")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMCv2.xlsx',"Day4Page1")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMCv2.xlsx',"Day4Page2")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMCv2.xlsx',"Day4Page3")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMCv2.xlsx',"Day4Page4")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMCv2.xlsx',"Day4Page5")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMCv2.xlsx',"Day4Page6")) %>%
+  filter(!is.na(value) & !value=="DONE" & value != 0) %>%
+  filter(!value %in% c("-?","?","11?","3/23-3/24 left on bench overnight","3/26 1:42 not sure if they all eclosed (EM)","44563","44596","44745","5 on peel? 3/23 9:30 AM","6 DEAD","6?","A/P","ALL LARVAE","DONE 1","dropped","early?","MOLD","NO PUPAE SOME LARVAE","Tight cap 3/23 9:30 AM","tight lid","TIGHT LID","tight lid 3/23 9:40 AM","tight lid 3/23 9:50 AM","Tight Lid 3/23 9:55 AM","small")) %>%
+  mutate(value = as.numeric(as.character(value))) %>%
+  mutate(variable = round(as.numeric(as.character(variable)),1)) %>%
+  tidyr::uncount(value) %>% 
+  mutate(event = 1) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev2_JMCv2.xlsx',"Day1Page1") %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev2_JMCv2.xlsx',"Day1Page2")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev2_JMCv2.xlsx',"Day1Page3")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev2_JMCv2.xlsx',"Day1Page4")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev2_JMCv2.xlsx',"Day1Page5")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev2_JMCv2.xlsx',"Day1Page6")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev2_JMCv2.xlsx',"Day2Page1")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev2_JMCv2.xlsx',"Day2Page2")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev2_JMCv2.xlsx',"Day2Page3")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev2_JMCv2.xlsx',"Day2Page4")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev2_JMCv2.xlsx',"Day2Page5")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev2_JMCv2.xlsx',"Day2Page6")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev2_JMCv2.xlsx',"Day3Page1")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev2_JMCv2.xlsx',"Day3Page2")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev2_JMCv2.xlsx',"Day3Page3")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev2_JMCv2.xlsx',"Day3Page4")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev2_JMCv2.xlsx',"Day3Page5")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev2_JMCv2.xlsx',"Day3Page6")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev2_JMCv2.xlsx',"Day4Page1")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev2_JMCv2.xlsx',"Day4Page2")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev2_JMCv2.xlsx',"Day4Page3")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev2_JMCv2.xlsx',"Day4Page4")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev2_JMCv2.xlsx',"Day4Page5")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev2_JMCv2.xlsx',"Day4Page6")) %>%
+    filter(!is.na(value) & !value=="DONE" & value != 0) %>%
+    filter(!value %in% c("-?","?","11?","3/23-3/24 left on bench overnight","3/26 1:42 not sure if they all eclosed (EM)","44563","44596","44745","5 on peel? 3/23 9:30 AM","6 DEAD","6?","A/P","ALL LARVAE","DONE 1","dropped","early?","MOLD","NO PUPAE SOME LARVAE","Tight cap 3/23 9:30 AM","tight lid","TIGHT LID","tight lid 3/23 9:40 AM","tight lid 3/23 9:50 AM","Tight Lid 3/23 9:55 AM")) %>%
+    mutate(value = as.numeric(as.character(value))) %>%
+    mutate(variable = round(as.numeric(as.character(variable)),1))%>%
+    tidyr::uncount(value) %>% 
+    mutate(event = 0)
+  )
+
+table(starve_orig$variable)
+table(starve_orig$vial)
+table(starve_orig$event)
+
+write.csv(starve_orig, "FV_development_orig.csv")
+
+
+
+
+
+starve <- read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day1Page1") %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day1Page2")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day1Page3")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day1Page4")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day1Page5")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day1Page6")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day2Page1")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day2Page2")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day2Page3")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day2Page4")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day2Page5")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day2Page6")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day3Page1")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day3Page2")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day3Page3")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day3Page4")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day3Page5")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day3Page6")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day4Page1")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day4Page2")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day4Page3")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day4Page4")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day4Page5")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day4Page6")) %>%
+  filter(!is.na(value) & !value=="DONE" & value != 0) %>%
+  filter(!value %in% c("-?","?","11?","3/23-3/24 left on bench overnight","3/26 1:42 not sure if they all eclosed (EM)","44563","44596","44745","5 on peel? 3/23 9:30 AM","6 DEAD","6?","A/P","ALL LARVAE","DONE 1","dropped","early?","MOLD","NO PUPAE SOME LARVAE","Tight cap 3/23 9:30 AM","tight lid","TIGHT LID","tight lid 3/23 9:40 AM","tight lid 3/23 9:50 AM","Tight Lid 3/23 9:55 AM","small")) %>%
+  mutate(value = as.numeric(as.character(value))) %>%
+  mutate(variable = round(as.numeric(as.character(variable)),1)) %>%
+  tidyr::uncount(value) %>% 
+  mutate(event = 1) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day1Page1") %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day1Page2")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day1Page3")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day1Page4")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day1Page5")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day1Page6")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day2Page1")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day2Page2")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day2Page3")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day2Page4")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day2Page5")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day2Page6")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day3Page1")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day3Page2")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day3Page3")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day3Page4")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day3Page5")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day3Page6")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day4Page1")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day4Page2")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day4Page3")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day4Page4")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day4Page5")) %>%
+    rbind(read_in_data('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx',"Day4Page6")) %>%
+    filter(!is.na(value) & !value=="DONE" & value != 0) %>%
+    filter(!value %in% c("-?","?","11?","3/23-3/24 left on bench overnight","3/26 1:42 not sure if they all eclosed (EM)","44563","44596","44745","5 on peel? 3/23 9:30 AM","6 DEAD","6?","A/P","ALL LARVAE","DONE 1","dropped","early?","MOLD","NO PUPAE SOME LARVAE","Tight cap 3/23 9:30 AM","tight lid","TIGHT LID","tight lid 3/23 9:40 AM","tight lid 3/23 9:50 AM","Tight Lid 3/23 9:55 AM")) %>%
+    mutate(value = as.numeric(as.character(value))) %>%
+    mutate(variable = round(as.numeric(as.character(variable)),1))%>%
+    tidyr::uncount(value) %>% 
+    mutate(event = 0)
+  )
+
+table(starve$variable)
+table(starve$vial)
+table(starve$event)
+
+write.csv(starve, "FV_development.csv")
+
+
+
+
+```
+
+## dev data stats
+```{r}
+
+
+
+starve2 <- starve %>% 
+  rowwise() %>%
+  tidyr::separate(col = vial, into = c("fruit","treatment","replicate"), remove = F) %>%
+  mutate(experiment = ifelse(replicate %in% c(1:3), "expA",ifelse(replicate %in% c(4:6), "expB",ifelse(replicate%in% c(7:9),"expC",ifelse(replicate%in%c(10:12),"expD","expE"))))) %>%
+  mutate(treatment = factor(as.character(treatment)),
+         replicate = factor(as.character(replicate)),
+         fruit  = factor(as.character(fruit)),
+          experiment = factor(as.character(experiment))
+         )
+
+metadata <- read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key") %>%
+  arrange(plot_order) %>%
+  dplyr::select(fruit) %>%
+  unlist() %>% unname() %>% as.character()
+
+starve2$fruit2 <- factor(starve2$fruit, levels = metadata)
+levels(starve2$fruit2)
+
+starve2$S <- survival::Surv(starve2$variable, starve2$event)
+starve2$ft <- with(starve2, interaction(fruit, treatment))
+starve2$tf <- with(starve2, interaction(treatment, fruit))
+
+#write.csv(starve2, "~/Dropbox/fruitandveggie/starve2.csv")
+
+contaminated <- read_xlsx("FV_dev_JMC2.xlsx", sheet = "contaminated") %>% 
+  filter(`Axenic?` == "N") %>% dplyr::pull(Tube)
+
+uncontaminated <- read_xlsx("FV_dev_JMC2.xlsx", sheet = "contaminated") %>% 
+  filter(`Axenic?` == "Y") %>% dplyr::pull(Tube)
+
+
+table(starve2$treatment)
+starve2c <- starve2 %>%
+  filter(treatment == "AX") %>%
+  filter(!vial %in% c(contaminated, uncontaminated))
+
+
+table(starve2c$vial)
+table(starve2c$fruit)
+
+table(starve2 %>% filter(treatment == "AX") %>% filter(vial %in% contaminated) %>% pull(fruit))
+
+starve2c
+
+
+vials <- unique(starve2$vial)
+
+vials[vials %in% uncontaminated]
+
+
+dim(starve2)
+
+23470 - 8008
+23470 - 14750
+11614 
+starve2
+starve2b <- starve2 %>% filter(treatment == "G") # 11614
+starve2b <- starve2 %>% filter(vial %in% uncontaminated) # 3264
+starve2b <- starve2 %>% filter(vial %in% contaminated) # 
+
+
+starve2b <- starve2 %>%
+  filter()
+
+
+
+model_all <- pairwise_survdiff(S ~ ft, data = starve2, p.adjust.method = "BH")
+x <- starve2$ft
+levs <- levels(x)
+y <- Surv(starve2$event,rep(1,length(starve2$variable))) 
+lvl_order <- levels(x)[order(tapply(as.numeric(y)[1:length(x)], 
+                                    x, mean))]
+
+comps <- as_tibble(model_all$p.value, rownames="row") %>% 
+  tidyr::pivot_longer(-row, names_to="col", values_to="p") %>% 
+  na.omit()
+
+mycomps <- as.matrix(comps[,1:2])
+signif <- comps$p < .05
+
+clds <- multcomp:::insert_absorb(signif, 
+                                 decreasing=FALSE, 
+                                 comps=mycomps, 
+                                 lvl_order=lvl_order)
+
+cld_df <- clds$Letters %>% data.frame() %>% dplyr::rename(pvals = ".") %>% mutate(fruit = rownames(.))
+colnames(cld_df)
+
+jpeg(width = 11.4, height = 10, filename = "fv_axgen_dev_km_all.jpg", units = "in", res = 300)
+plot(survfit(S ~ ft, starve2), 
+     xlim=c(6,16), 
+     col = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(color) %>%  unlist() %>% unname() %>% as.character(),
+     lty = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(lwd) %>%  unlist() %>% unname() %>% as.numeric(as.character()),
+     lwd = 3, xlab = "time (d)", ylab = "fractional survival"
+)
+legend(x=13.5, y=1, 
+       legend = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(fruitname) %>%  unlist() %>% unname() %>% as.character(),
+       col = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(color) %>%  unlist() %>% unname() %>% as.character(),
+       lty = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(lwd) %>%  unlist() %>% unname() %>% as.numeric(as.character()),
+       lwd=3, bty = "n", cex=1
+       )
+dev.off()
+
+starve3 <- starve2 %>%
+  filter(event == 1) %>%
+  group_by(ft,fruit) %>%
+  dplyr::summarize(mean = mean(variable), sem = sd(variable)/sqrt(dplyr::n()), n = dplyr::n()) %>%
+  ungroup() %>%
+  inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2"), by = c("ft" = "ft")) %>%
+  inner_join(cld_df, by = c("ft" = "fruit"))
+
+starve3$fruit.x <- factor(starve3$fruit.x, levels = metadata)
+starve3$fruit.x <- factor(starve3$fruit.x, labels = data.frame(levels(starve3$fruit.x)) %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, plotname) %>% distinct() , by = c(`levels.starve3.fruit.x.` = "fruit")) %>% mutate(plotname = gsub(pattern = "\\\\n", replacement = "\n",x = plotname, perl = T)) %>% dplyr::select(plotname) %>% unlist() %>% unname())
+
+starve4 <- starve2 %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2"), by = c("ft" = "ft"))
+starve4$fruit.x <- factor(starve4$fruit.x, levels = metadata)
+levels(starve4$fruit.x)
+starve4$fruit.x <- factor(starve4$fruit.x, labels = data.frame(levels(starve4$fruit.x)) %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, plotname) %>% distinct() , by = c(`levels.starve4.fruit.x.` = "fruit")) %>% mutate(plotname = gsub(pattern = "\\\\n", replacement = "\n",x = plotname, perl = T)) %>% dplyr::select(plotname) %>% unlist() %>% unname())
+levels(starve4$fruit.x)
+
+starve4$ft <- factor(starve4$ft, levels = c(paste0(metadata,".G"),paste0(metadata, ".AX")))
+levels(starve4$ft)
+
+ggplot(starve4, aes(x = ft, y = variable, color = as.character(color))) +
+  facet_grid(.~fruit.x, drop = TRUE, space = "free", scales = "free") + 
+  geom_jitter(height = 0.3, size=.3) +
+  scale_color_identity() +
+  cowplot::theme_cowplot() +
+  theme(axis.text.x = element_blank(), 
+        strip.text.x = element_text(angle = 65)
+  ) +
+  geom_crossbar(data=starve3, aes(x = ft, y = mean, ymin = mean, ymax = mean), size=.5, col="black", width = .75) +
+	geom_text(data = starve3, aes(label=unlist(unname(pvals)) %>% as.character(), y=max(starve4$variable), angle = 90, hjust = 1), size=6) + 
+  labs(x = "fruit", y = "development time (d)")
+ggsave('fv_ag_dev_all-gvalTHENaval.jpg', h=5,w=12, bg = "white")
+
+
+
+## this will give the pairwise pval differences
+empty_df <- data.frame(group = character(), pval = numeric(), chisq = numeric())
+
+i = "AS"
+for(i in names(table(starve2$fruit))) {
+  test_df <- starve2 %>% filter(fruit == i)
+  kw_out <- kruskal.test(test_df$variable ~ test_df$treatment)
+  new_df <- data.frame(group = as.character(i), pval = as.numeric(kw_out$p.value), chisq = as.numeric(kw_out$statistic))
+  empty_df <- rbind(empty_df, new_df)
+
+}
+
+empty_df %>% arrange(pval)
+
+###
+## now test fly yield per vial
+###
+
+# get counts
+starve_yield_counts <- starve2 %>%
+  mutate(vial = paste(fruit,treatment,replicate, sep = "_")) %>%
+  filter(event == 1) %>%
+  group_by(ft,fruit, vial) %>%
+  dplyr::summarize(count = dplyr::n()) 
+
+# stats
+starve_test <- kruskal.test(starve_yield_counts$count ~ starve_yield_counts$ft)
+efg <- dunn.test(starve_yield_counts$count,starve_yield_counts$ft, method = "bh", table = F)
+ghi <- cldList(comparison = efg$comparisons, p.value = efg$P.adjusted, threshold = 0.05)
+cld_df_counts <- ghi %>% dplyr::select(pvals = Letter, fruit = Group)
+
+# make means
+starve_yield_mean <- starve_yield_counts %>%
+  ungroup() %>%
+  group_by(ft, fruit) %>%
+  dplyr::summarize(mean = mean(count)) %>%
+  inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2"), by = c("ft" = "ft")) %>% 
+  inner_join(cld_df_counts, by = c("ft" = "fruit"))
+
+starve_yield_mean$fruit.x <- factor(starve_yield_mean$fruit.x, levels = metadata)
+starve_yield_mean$fruit.x <- factor(starve_yield_mean$fruit.x, labels = data.frame(levels(starve_yield_mean$fruit.x)) %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, plotname) %>% distinct() , by = c(`levels.starve_yield_mean.fruit.x.` = "fruit")) %>% mutate(plotname = gsub(pattern = "\\\\n", replacement = "\n",x = plotname, perl = T)) %>% dplyr::select(plotname) %>% unlist() %>% unname())
+
+starve_yield_counts2 <- starve_yield_counts %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2"), by = c("ft" = "ft"))
+starve_yield_counts2$fruit.x <- factor(starve_yield_counts2$fruit.x, levels = metadata)
+levels(starve_yield_counts2$fruit.x)
+starve_yield_counts2$fruit.x <- factor(starve_yield_counts2$fruit.x, labels = data.frame(levels(starve_yield_counts2$fruit.x)) %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, plotname) %>% distinct() , by = c(`levels.starve_yield_counts2.fruit.x.` = "fruit")) %>% mutate(plotname = gsub(pattern = "\\\\n", replacement = "\n",x = plotname, perl = T)) %>% dplyr::select(plotname) %>% unlist() %>% unname())
+levels(starve_yield_counts2$fruit.x)
+
+starve_yield_counts2$ft <- factor(starve_yield_counts2$ft, levels = c(paste0(metadata,".G"),paste0(metadata, ".AX")))
+levels(starve_yield_counts2$ft)
+
+ggplot(starve_yield_counts2, aes(x = ft, y = count, color = as.character(color))) +
+  facet_grid(.~fruit.x, drop = TRUE, space = "free", scales = "free") + 
+  geom_jitter(height = 0.3, size=1, width = 0.1) +
+  scale_color_identity() +
+  cowplot::theme_cowplot() +
+  theme(axis.text.x = element_blank(), 
+        strip.text.x = element_text(angle = 65)
+  ) +
+  geom_crossbar(data=starve_yield_mean, aes(x = ft, y = mean, ymin = mean, ymax = mean), size=.5, col="black", width = .75) +
+	geom_text(data = starve_yield_mean, aes(label=unlist(unname(pvals)) %>% as.character(), y=150, angle = 90, hjust = 1), size=6) + 
+  labs(x = "fruit", y = "flies per vial")
+ggsave('fv_ag_counts_all-gvalTHENaval.jpg', h=5,w=12, bg = "white")
+
+## this will give the pairwise pval differences
+empty_df <- data.frame(group = character(), pval = numeric(), chisq = numeric())
+
+i = "AS"
+for(i in names(table(starve_yield_counts2$fruit.y))) {
+  test_df <- starve_yield_counts2 %>% filter(fruit.y == i)
+  kw_out <- kruskal.test(test_df$count ~ test_df$treatment)
+  new_df <- data.frame(group = as.character(i), pval = as.numeric(kw_out$p.value), chisq = as.numeric(kw_out$statistic))
+  empty_df <- rbind(empty_df, new_df)
+
+}
+
+empty_df %>% arrange(pval)
+
+
+```
+
+## store dev data
+```{r}
+data_dev <- starve4 
+```
+
+## axenic dev data
+```{r}
+starve[1,]
+starve2[1,]
+starve3[1,]
+starve4[1,]
+
+ax_starve <- starve3 %>% filter(treatment == "X") %>% arrange(mean)
+ax_starve$fruit = factor(ax_starve$fruit.x, levels = ax_starve$fruit.x)
+
+
+table(ax_starve$)
+
+ggplot(ax_starve, aes(x = fruit, y=mean)) + 
+  geom_col() + 
+  theme_cowplot() + 
+  theme(axis.text.x = element_text(angle=90)) 
+
+
+
+
+
+```
+
+
+## correlations between gnotobiotic microbiota composition and nutritional composition of the fruits or veggies
+```{r}
+
+file_path <- "gflies"
+mapper_file <- "mapper.tsv"
+gn_starve <- starve3 %>% filter(treatment == "G") %>% arrange(mean)
+gn_starve$fruit = factor(gn_starve$fruit.x, levels = gn_starve$fruit.x)
+
+
+ggplot(gn_starve, aes(x = fruit, y=mean)) + 
+  geom_col() + 
+  theme_cowplot() + 
+  theme(axis.text.x = element_text(angle=90)) 
+
+
+calculate_correlations(file_path = file_path, taxonomy_extension = "fv2", mapper_file = mapper_file, frac_samples = .2, averaged = F)
+
+
+
+```
+
+## dev data stats - filterAX
+```{r}
+
+starve2 <- starve %>% 
+  rowwise() %>%
+  tidyr::separate(col = vial, into = c("fruit","treatment","replicate"), remove = F) %>%
+  mutate(experiment = ifelse(replicate %in% c(1:3), "expA",ifelse(replicate %in% c(4:6), "expB",ifelse(replicate%in% c(7:9),"expC",ifelse(replicate%in%c(10:12),"expD","expE"))))) %>%
+  mutate(treatment = factor(as.character(treatment)),
+         replicate = factor(as.character(replicate)),
+         fruit  = factor(as.character(fruit)),
+          experiment = factor(as.character(experiment))
+         ) 
+
+contaminated
+# AS-AX-2"  "AS-AX-4"  "AS-AX-9"  "BA-AX-4"  "BA-AX-5"  "BA-AX-6"  "CA-AX-1"  "CA-AX-4"  "CA-AX-5"  "CA-AX-7"  "CA-AX-8" 
+# [12] "CO-AX-10" "CO-AX-11" "CO-AX-8"  "FJ-AX-1"  "FJ-AX-7"  "LI-AX-10" "LI-AX-11" "LI-AX-12" "LI-AX-3"  "MA-AX-1"  "MA-AX-2" 
+# [23] "MA-AX-4"  "MA-AX-5"  "MA-AX-6"  "MA-AX-9"  "OR-AX-1"  "OR-AX-3"  "PO-AX-4"  "PO-AX-5"  "PO-AX-6"  "PO-AX-9"  "PR-AX-6" 
+# [34] "RP-AX-4"  "RP-AX-5"  "SP-AX-1"  "SP-AX-4"  "SP-AX-4"  "TO-AX-11"
+uncontaminated
+starve2 <- starve2 %>%
+  mutate(fe = paste0(toupper(fruit), gsub(pattern = "exp",replacement = "",x = experiment))) %>%
+  filter(fe %in% toupper(c("asa","caa","fja","lia","maa","ora","spa","asb","bab","cab","mab","pob","rpb","cac","fjc","poc","cod","lid","tod", "prb","spb"))) %>%
+  droplevels()
+  
+# starve2d <- starve2 %>%
+#   mutate(fe = paste0(toupper(fruit), gsub(pattern = "exp",replacement = "",x = experiment))) %>%
+#   filter(vial %in% uncontaminated | treatment == "G") %>%
+#   filter(!fruit %in% c("AV", "BP","CH","CL","CU","ZU")) %>%
+#   filter(!fruit %in% c("AV", "BP","CH","CL","CU","ZU")) %>%
+#   mutate(ft = paste0(fruit,treatment)) %>%
+#   droplevels()
+# 
+# 
+# table(starve2d$ft)
+# 
+# 
+# table(starve2d$)
+
+metadata <- read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key") %>%
+  arrange(plot_order) %>%
+  dplyr::select(fruit) %>%
+  filter(fruit %in% levels(starve2$fruit)) %>%
+  unlist() %>% unname() %>% as.character()
+
+starve2$fruit2 <- factor(starve2$fruit, levels = metadata)
+levels(starve2$fruit2)
+
+starve2 <- starve2 %>% droplevels()
+
+starve2$S <- survival::Surv(starve2$variable, starve2$event)
+starve2$ft <- with(starve2, interaction(fruit, treatment))
+starve2$tf <- with(starve2, interaction(treatment, fruit))
+
+model_all <- pairwise_survdiff(S ~ ft, data = starve2, p.adjust.method = "BH")
+x <- starve2$ft
+levs <- levels(x)
+y <- Surv(starve2$event,rep(1,length(starve2$variable))) 
+lvl_order <- levels(x)[order(tapply(as.numeric(y)[1:length(x)], 
+                                    x, mean))]
+
+comps <- as_tibble(model_all$p.value, rownames="row") %>% 
+  tidyr::pivot_longer(-row, names_to="col", values_to="p") %>% 
+  na.omit()
+
+mycomps <- as.matrix(comps[,1:2])
+signif <- comps$p < .05
+
+clds <- multcomp:::insert_absorb(signif, 
+                                 decreasing=FALSE, 
+                                 comps=mycomps, 
+                                 lvl_order=lvl_order)
+
+cld_df <- clds$Letters %>% data.frame() %>% rename(pvals = ".") %>% mutate(fruit = rownames(.))
+colnames(cld_df)
+
+jpeg(width = 11.4, height = 10, filename = "fv_axgen_dev_km_clean.jpg", units = "in", res = 300)
+plot(survfit(S ~ ft, starve2), 
+     xlim=c(6,16), 
+     col = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(color) %>%  unlist() %>% unname() %>% as.character(),
+     lty = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(lwd) %>%  unlist() %>% unname() %>% as.numeric(as.character()),
+     lwd = 3, xlab = "time (d)", ylab = "fractional survival"
+)
+legend(x=13.5, y=1, 
+       legend = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(fruitname) %>%  unlist() %>% unname() %>% as.character(),
+       col = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(color) %>%  unlist() %>% unname() %>% as.character(),
+       lty = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(lwd) %>%  unlist() %>% unname() %>% as.numeric(as.character()),
+       lwd=3, bty = "n", cex=1
+       )
+dev.off()
+
+starve3 <- starve2 %>%
+  filter(event == 1) %>%
+  group_by(ft,fruit) %>%
+  summarize(mean = mean(variable), sem = sd(variable)/sqrt(dplyr::n()), n = dplyr::n()) %>%
+  ungroup() %>%
+  inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2"), by = c("ft" = "ft")) %>%
+  inner_join(cld_df, by = c("ft" = "fruit")) %>%
+  droplevels()
+
+starve3$fruit.x <- factor(starve3$fruit.x, levels = metadata)
+starve3$fruit.x <- factor(starve3$fruit.x, labels = data.frame(levels(starve3$fruit.x)) %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, plotname) %>% distinct() , by = c(`levels.starve3.fruit.x.` = "fruit")) %>% mutate(plotname = gsub(pattern = "\\\\n", replacement = "\n",x = plotname, perl = T)) %>% dplyr::select(plotname) %>% unlist() %>% unname())
+
+starve4 <- starve2 %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2"), by = c("ft" = "ft"))
+starve4$fruit.x <- factor(starve4$fruit.x, levels = metadata)
+levels(starve4$fruit.x)
+starve4$fruit.x <- factor(starve4$fruit.x, labels = data.frame(levels(starve4$fruit.x)) %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, plotname) %>% distinct() , by = c(`levels.starve4.fruit.x.` = "fruit")) %>% mutate(plotname = gsub(pattern = "\\\\n", replacement = "\n",x = plotname, perl = T)) %>% dplyr::select(plotname) %>% unlist() %>% unname())
+levels(starve4$fruit.x)
+
+starve4$ft <- factor(starve4$ft, levels = c(paste0(metadata,".G"),paste0(metadata, ".AX")))
+levels(starve4$ft)
+
+ggplot(starve4, aes(x = ft, y = variable, color = as.character(color))) +
+  facet_grid(.~fruit.x, drop = TRUE, space = "free", scales = "free") + 
+  geom_jitter(height = 0.3, size=.3) +
+  scale_color_identity() +
+  cowplot::theme_cowplot() +
+  theme(axis.text.x = element_blank(), 
+        strip.text.x = element_text(angle = 65)
+  ) +
+  geom_crossbar(data=starve3, aes(x = ft, y = mean, ymin = mean, ymax = mean), size=.5, col="black", width = .75) +
+	geom_text(data = starve3, aes(label=unlist(unname(pvals)) %>% as.character(), y=max(starve4$variable), angle = 90, hjust = 1), size=6) + 
+  labs(x = "fruit", y = "development time (d)")
+ggsave('fv_ag_dev_all-gvalTHENaval_clean.jpg', h=5,w=12, bg = "white")
+
+ ## this will give the pairwise pval differences
+empty_df <- data.frame(group = character(), pval = numeric(), chisq = numeric())
+
+for(i in names(table(starve2$fruit))) {
+  test_df <- starve2 %>% filter(fruit == i)
+  kw_out <- kruskal.test(test_df$variable ~ test_df$treatment)
+  new_df <- data.frame(group = as.character(i), pval = as.numeric(kw_out$p.value), chisq = as.numeric(kw_out$statistic))
+  empty_df <- rbind(empty_df, new_df)
+}
+
+empty_df %>% arrange(pval)
+#    group         pval      chisq
+# 1     SP 3.562074e-29 125.708099
+# 2     CO 1.681090e-27 118.061327
+# 3     MA 1.257604e-14  59.444997
+# 4     OR 6.784190e-14  56.129775
+# 5     RP 2.988427e-10  39.682161
+# 6     CA 8.228692e-09  33.220302
+# 7     BA 1.129083e-08  32.605268
+# 8     PO 6.964331e-04  11.498742
+# 9     FJ 2.269810e-03   9.317456
+# 10    AS 3.655545e-03   8.447456
+# 11    LI 5.431626e-02   3.702953
+# 12    TO 1.085710e-01   2.574899
+###
+## now test fly yield per vial
+###
+
+# get counts
+starve_yield_counts <- starve2 %>%
+  mutate(vial = paste(fruit,treatment,replicate, sep = "_")) %>%
+  filter(event == 1) %>%
+  group_by(ft,fruit, vial) %>%
+  summarize(count = dplyr::n()) 
+
+# stats
+starve_test <- kruskal.test(starve_yield_counts$count ~ starve_yield_counts$ft)
+efg <- dunn.test(starve_yield_counts$count,starve_yield_counts$ft, method = "bh", table = F)
+ghi <- cldList(comparison = efg$comparisons, p.value = efg$P.adjusted, threshold = 0.05)
+cld_df_counts <- ghi %>% dplyr::select(pvals = Letter, fruit = Group)
+
+# make means
+starve_yield_mean <- starve_yield_counts %>%
+  ungroup() %>%
+  group_by(ft, fruit) %>%
+  summarize(mean = mean(count)) %>%
+  inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2"), by = c("ft" = "ft")) %>% 
+  inner_join(cld_df_counts, by = c("ft" = "fruit"))
+
+starve_yield_mean$fruit.x <- factor(starve_yield_mean$fruit.x, levels = metadata)
+starve_yield_mean$fruit.x <- factor(starve_yield_mean$fruit.x, labels = data.frame(levels(starve_yield_mean$fruit.x)) %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, plotname) %>% distinct() , by = c(`levels.starve_yield_mean.fruit.x.` = "fruit")) %>% mutate(plotname = gsub(pattern = "\\\\n", replacement = "\n",x = plotname, perl = T)) %>% dplyr::select(plotname) %>% unlist() %>% unname())
+
+starve_yield_counts2 <- starve_yield_counts %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2"), by = c("ft" = "ft"))
+starve_yield_counts2$fruit.x <- factor(starve_yield_counts2$fruit.x, levels = metadata)
+levels(starve_yield_counts2$fruit.x)
+starve_yield_counts2$fruit.x <- factor(starve_yield_counts2$fruit.x, labels = data.frame(levels(starve_yield_counts2$fruit.x)) %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, plotname) %>% distinct() , by = c(`levels.starve_yield_counts2.fruit.x.` = "fruit")) %>% mutate(plotname = gsub(pattern = "\\\\n", replacement = "\n",x = plotname, perl = T)) %>% dplyr::select(plotname) %>% unlist() %>% unname())
+levels(starve_yield_counts2$fruit.x)
+
+starve_yield_counts2$ft <- factor(starve_yield_counts2$ft, levels = c(paste0(metadata,".G"),paste0(metadata, ".AX")))
+levels(starve_yield_counts2$ft)
+
+ggplot(starve_yield_counts2, aes(x = ft, y = count, color = as.character(color))) +
+  facet_grid(.~fruit.x, drop = TRUE, space = "free", scales = "free") + 
+  geom_jitter(height = 0.3, size=1, width = 0.1) +
+  scale_color_identity() +
+  cowplot::theme_cowplot() +
+  theme(axis.text.x = element_blank(), 
+        strip.text.x = element_text(angle = 65)
+  ) +
+  geom_crossbar(data=starve_yield_mean, aes(x = ft, y = mean, ymin = mean, ymax = mean), size=.5, col="black", width = .75) +
+	geom_text(data = starve_yield_mean, aes(label=unlist(unname(pvals)) %>% as.character(), y=150, angle = 90, hjust = 1), size=6) + 
+  labs(x = "fruit", y = "flies per vial")
+ggsave('fv_ag_counts_all-gvalTHENaval_clean.jpg', h=5,w=12, bg = "white")
+
+## this will give the pairwise pval differences
+empty_df <- data.frame(group = character(), pval = numeric(), chisq = numeric())
+
+i = "AS"
+for(i in names(table(starve_yield_counts2$fruit.y))) {
+  test_df <- starve_yield_counts2 %>% filter(fruit.y == i)
+  kw_out <- kruskal.test(test_df$count ~ test_df$treatment)
+  new_df <- data.frame(group = as.character(i), pval = as.numeric(kw_out$p.value), chisq = as.numeric(kw_out$statistic))
+  empty_df <- rbind(empty_df, new_df)
+
+}
+
+empty_df %>% arrange(pval)
+#    group       pval     chisq
+# 1     SP 0.08808151 2.9090909
+# 2     RP 0.12133525 2.4000000
+# 3     TO 0.12663046 2.3333333
+# 4     CA 0.13463312 2.2382518
+# 5     MA 0.26233168 1.2564103
+# 6     BA 0.27523352 1.1904762
+# 7     FJ 0.28495764 1.1432927
+# 8     OR 0.37582509 0.7843137
+# 9     CO 0.60557662 0.2666667
+# 10    LI 0.62420611 0.2400000
+# 11    AS 0.64657572 0.2102446
+# 12    PO 1.00000000 0.0000000
+
+```
+
+## store clean dev data
+```{r}
+data_dev_clean <- starve4 
+```
+
+# Starve Data - Gn/Ax
+## starve data - prep
+```{r}
+
+setwd('~/Dropbox/fruitandveggie/')
+read_in_data <- function(filepath, sheet_name) {
+starvation <- read_xlsx(filepath, sheet = sheet_name, skip = 5, col_names = T) %>%
+  reshape2::melt(id.vars = "vial")
+}
+
+starve <- read_in_data('~/Dropbox/fruitandveggie/starvation data_axgn_jmc_V2.xlsx',"Page1") %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/starvation data_axgn_jmc_V2.xlsx',"Page2")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/starvation data_axgn_jmc_V2.xlsx',"Page3")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/starvation data_axgn_jmc_V2.xlsx',"Page4")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/starvation data_axgn_jmc_V2.xlsx',"Page5")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/starvation data_axgn_jmc_V2.xlsx',"Page6")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/starvation data_axgn_jmc_V2.xlsx',"Page7")) %>%
+  filter(!is.na(value) & !value=="DONE" & value != 0) %>%
+  filter(!value %in% c("?")) %>%
+  mutate(value = as.numeric(as.character(value))) %>%
+  mutate(variable = round(as.numeric(as.character(variable)),1)) %>%
+  tidyr::uncount(value) %>% 
+  mutate(event = 1) 
+
+table(starve$variable)
+table(starve$vial)
+table(starve$event)
+```
+
+## starve data stats
+```{r}
+
+starve2 <- starve %>% 
+  rowwise() %>%
+  tidyr::separate(col = vial, into = c("fruit","treatment","replicate"), remove = F) %>%
+  mutate(experiment = ifelse(replicate %in% c(1:3), "expA",ifelse(replicate %in% c(4:6), "expB",ifelse(replicate%in% c(7:9),"expC",ifelse(replicate%in%c(10:12),"expD","expE"))))) %>%
+  mutate(treatment = factor(as.character(treatment)),
+         replicate = factor(as.character(replicate)),
+         fruit  = factor(as.character(fruit)),
+          experiment = factor(as.character(experiment))
+         ) %>%
+  droplevels()
+
+
+starve2 <- starve2 %>%
+  mutate(fe = paste0(toupper(fruit), gsub(pattern = "exp",replacement = "",x = experiment))) %>%
+  filter(fe %in% toupper(c("asa","caa","fja","lia","maa","ora","spa","asb","bab","cab","mab","pob","rpb","cac","fjc","poc","cod","lid","tod", "prb","spb"))) %>%
+  droplevels()
+
+
+metadata <- read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key") %>%
+  arrange(plot_order) %>%
+  dplyr::select(fruit) %>%
+  filter(fruit %in% levels(starve2$fruit)) %>%
+  unlist() %>% unname() %>% as.character()
+
+starve2$fruit2 <- factor(starve2$fruit, levels = metadata)
+levels(starve2$fruit2)
+
+starve2$S <- survival::Surv(starve2$variable, starve2$event)
+starve2$ft <- with(starve2, interaction(fruit, treatment))
+starve2$tf <- with(starve2, interaction(treatment, fruit))
+
+#write.csv(starve2, "~/Dropbox/fruitandveggie/starve2.csv")
+
+model_all <- pairwise_survdiff(S ~ ft, data = starve2, p.adjust.method = "BH")
+x <- starve2$ft
+levs <- levels(x)
+y <- Surv(starve2$event,rep(1,length(starve2$variable))) 
+lvl_order <- levels(x)[order(tapply(as.numeric(y)[1:length(x)], 
+                                    x, mean))]
+
+comps <- as_tibble(model_all$p.value, rownames="row") %>% 
+  tidyr::pivot_longer(-row, names_to="col", values_to="p") %>% 
+  na.omit()
+
+mycomps <- as.matrix(comps[,1:2])
+signif <- comps$p < .05
+
+clds <- multcomp:::insert_absorb(signif, 
+                                 decreasing=FALSE, 
+                                 comps=mycomps, 
+                                 lvl_order=lvl_order)
+
+cld_df <- clds$Letters %>% data.frame() %>% rename(pvals = ".") %>% mutate(fruit = rownames(.))
+colnames(cld_df)
+
+jpeg(width = 11.4, height = 10, filename = "fv_axgn_starve_km_all.jpg", units = "in", res = 300)
+plot(survfit(S ~ ft, starve2), 
+     xlim=c(0,6), 
+     col = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(color) %>%  unlist() %>% unname() %>% as.character(),
+     lty = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(lwd) %>%  unlist() %>% unname() %>% as.numeric(as.character()),
+     lwd = 3, xlab = "time (d)", ylab = "fractional survival"
+)
+legend(x=4.5, y=1, 
+       legend = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(fruitname) %>%  unlist() %>% unname() %>% as.character(),
+       col = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(color) %>%  unlist() %>% unname() %>% as.character(),
+       lty = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(lwd) %>%  unlist() %>% unname() %>% as.numeric(as.character()),
+       lwd=3, bty = "n", cex=1
+       )
+dev.off()
+
+starve3 <- starve2 %>%
+  filter(event == 1) %>%
+  group_by(ft,fruit) %>%
+  summarize(mean = mean(variable), sem = sd(variable)/sqrt(dplyr::n()), n = dplyr::n()) %>%
+  ungroup() %>%
+  inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2"), by = c("ft" = "ft")) %>%
+  inner_join(cld_df, by = c("ft" = "fruit"))
+
+starve3$fruit.x <- factor(starve3$fruit.x, levels = metadata)
+starve3$fruit.x <- factor(starve3$fruit.x, labels = data.frame(levels(starve3$fruit.x)) %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, plotname) %>% distinct() , by = c(`levels.starve3.fruit.x.` = "fruit")) %>% mutate(plotname = gsub(pattern = "\\\\n", replacement = "\n",x = plotname, perl = T)) %>% dplyr::select(plotname) %>% unlist() %>% unname())
+
+starve4 <- starve2 %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2"), by = c("ft" = "ft"))
+starve4$fruit.x <- factor(starve4$fruit.x, levels = metadata)
+levels(starve4$fruit.x)
+starve4$fruit.x <- factor(starve4$fruit.x, labels = data.frame(levels(starve4$fruit.x)) %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, plotname) %>% distinct() , by = c(`levels.starve4.fruit.x.` = "fruit")) %>% mutate(plotname = gsub(pattern = "\\\\n", replacement = "\n",x = plotname, perl = T)) %>% dplyr::select(plotname) %>% unlist() %>% unname())
+levels(starve4$fruit.x)
+
+starve4$ft <- factor(starve4$ft, levels = c(paste0(metadata,".G"),paste0(metadata, ".AX")))
+levels(starve4$ft)
+
+ggplot(starve4, aes(x = ft, y = variable, color = as.character(color))) +
+  facet_grid(~fruit.x, drop = TRUE, space = "free", scales = "free") + 
+  geom_jitter(height = 0.3, size=.3) +
+  scale_color_identity() +
+  cowplot::theme_cowplot() +
+  theme(axis.text.x = element_text(angle=90), 
+        strip.text.x = element_text(angle = 65)
+  ) +
+  geom_crossbar(data=starve3, aes(x = ft, y = mean, ymin = mean, ymax = mean), size=.5, col="black", width = .75) +
+	geom_text(data = starve3, aes(label=unlist(unname(pvals)) %>% as.character(), y=max(starve4$variable), angle = 90, hjust = 1), size=6) + 
+  labs(x = "fruit", y = "time to death (d)")
+#  scale_x_discrete(labels = c("G","AX","AX","G","AX","AX","AX","G","AX","G","AX","G","AX","G","AX","G","AX","G","AX","G","AX","G","AX","G","AX","G","AX"))
+ggsave('fv_ag_starve_all-gvalTHENaval.jpg', h=5,w=12, bg = "white")
+
+
+
+## this will give the pairwise pval differences
+empty_df <- data.frame(group = character(), pval = numeric(), chisq = numeric())
+
+i = "AS"
+for(i in names(table(starve2$fruit))) {
+  test_df <- starve2 %>% filter(fruit == i)
+  if((sum(table(test_df$treatment)>0))>1){
+    print(i)
+  kw_out <- kruskal.test(test_df$variable ~ test_df$treatment)
+  new_df <- data.frame(group = as.character(i), pval = as.numeric(kw_out$p.value), chisq = as.numeric(kw_out$statistic))
+  empty_df <- rbind(empty_df, new_df)
+}
+}
+
+empty_df %>% arrange(pval)
+
+```
+
+## store all starve data
+```{r}
+data_starvation <- starve4 
+```
+
+## starve data stats - filterAX
+```{r}
+
+starve2 <- starve %>% 
+  rowwise() %>%
+  tidyr::separate(col = vial, into = c("fruit","treatment","replicate")) %>%
+  mutate(experiment = ifelse(replicate %in% c(1:3), "expA",ifelse(replicate %in% c(4:6), "expB",ifelse(replicate%in% c(7:9),"expC",ifelse(replicate%in%c(10:12),"expD","expE"))))) %>%
+  mutate(treatment = factor(as.character(treatment)),
+         replicate = factor(as.character(replicate)),
+         fruit  = factor(as.character(fruit)),
+          experiment = factor(as.character(experiment))
+         ) %>%
+  droplevels()
+
+starve2 <- starve2 %>%
+  mutate(fe = paste0(toupper(fruit), gsub(pattern = "exp",replacement = "",x = experiment))) %>%
+  filter(fe %in% toupper(c("asa","caa","fja","lia","maa","ora","spa","asb","bab","cab","mab","pob","rpb","cac","fjc","poc","cod","lid","tod", "prb","spb"))) %>%
+#  filter(fruit %in% c("BA","LI","MA","RP","SP"))
+  filter(fruit %in% c("BA","CA","FJ","LI","MA","OR","RP","SP","TO")) %>%
+  droplevels()
+
+metadata <- read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key") %>%
+  arrange(plot_order) %>%
+  dplyr::select(fruit) %>%
+  filter(fruit %in% levels(starve2$fruit)) %>%
+  unlist() %>% unname() %>% as.character()
+metadata
+starve2$fruit2 <- factor(starve2$fruit, levels = metadata)
+levels(starve2$fruit2)
+
+starve2 <- starve2 %>% droplevels()
+
+starve2$S <- survival::Surv(starve2$variable, starve2$event)
+starve2$ft <- with(starve2, interaction(fruit, treatment))
+starve2$tf <- with(starve2, interaction(treatment, fruit))
+table(starve2$ft)
+model_all <- pairwise_survdiff(S ~ ft, data = starve2, p.adjust.method = "BH")
+x <- starve2$ft
+levs <- levels(x)
+y <- Surv(starve2$event,rep(1,length(starve2$variable))) 
+lvl_order <- levels(x)[order(tapply(as.numeric(y)[1:length(x)], 
+                                    x, mean))]
+
+comps <- as_tibble(model_all$p.value, rownames="row") %>% 
+  tidyr::pivot_longer(-row, names_to="col", values_to="p") %>% 
+  na.omit()
+
+mycomps <- as.matrix(comps[,1:2])
+signif <- comps$p < .05
+
+clds <- multcomp:::insert_absorb(signif, 
+                                 decreasing=FALSE, 
+                                 comps=mycomps, 
+                                 lvl_order=lvl_order)
+
+cld_df <- clds$Letters %>% data.frame() %>% rename(pvals = ".") %>% mutate(fruit = rownames(.))
+colnames(cld_df)
+
+jpeg(width = 11.4, height = 10, filename = "fv_axgen_starve_km_clean.jpg", units = "in", res = 300)
+plot(survfit(S ~ ft, starve2), 
+     xlim=c(0,6), 
+     col = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(color) %>%  unlist() %>% unname() %>% as.character(),
+     lty = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(lwd) %>%  unlist() %>% unname() %>% as.numeric(as.character()),
+     lwd = 3, xlab = "time (d)", ylab = "fractional survival"
+)
+legend(x=4.5, y=1, 
+       legend = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(fruitname) %>%  unlist() %>% unname() %>% as.character(),
+       col = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(color) %>%  unlist() %>% unname() %>% as.character(),
+       lty = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(lwd) %>%  unlist() %>% unname() %>% as.numeric(as.character()),
+       lwd=3, bty = "n", cex=1
+       )
+dev.off()
+
+starve3 <- starve2 %>%
+  filter(event == 1) %>%
+  group_by(ft,fruit) %>%
+  summarize(mean = mean(variable), sem = sd(variable)/sqrt(dplyr::n()), n = dplyr::n()) %>%
+  ungroup() %>%
+  inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2"), by = c("ft" = "ft")) %>%
+  inner_join(cld_df, by = c("ft" = "fruit"))
+
+starve3$fruit.x <- factor(starve3$fruit.x, levels = metadata)
+starve3$fruit.x <- factor(starve3$fruit.x, labels = data.frame(levels(starve3$fruit.x)) %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, plotname) %>% distinct() , by = c(`levels.starve3.fruit.x.` = "fruit")) %>% mutate(plotname = gsub(pattern = "\\\\n", replacement = "\n",x = plotname, perl = T)) %>% dplyr::select(plotname) %>% unlist() %>% unname())
+
+starve4 <- starve2 %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2"), by = c("ft" = "ft"))
+starve4$fruit.x <- factor(starve4$fruit.x, levels = metadata)
+levels(starve4$fruit.x)
+starve4$fruit.x <- factor(starve4$fruit.x, labels = data.frame(levels(starve4$fruit.x)) %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, plotname) %>% distinct() , by = c(`levels.starve4.fruit.x.` = "fruit")) %>% mutate(plotname = gsub(pattern = "\\\\n", replacement = "\n",x = plotname, perl = T)) %>% dplyr::select(plotname) %>% unlist() %>% unname())
+levels(starve4$fruit.x)
+
+starve4$ft <- factor(starve4$ft, levels = c(paste0(metadata,".G"),paste0(metadata, ".AX")))
+levels(starve4$ft)
+
+ggplot(starve4, aes(x = ft, y = variable, color = as.character(color))) +
+  facet_grid(.~fruit.x, drop = TRUE, space = "free", scales = "free") + 
+  geom_jitter(height = 0.3, size=1) +
+  scale_color_identity() +
+  cowplot::theme_cowplot() +
+  theme(axis.text.x = element_blank(), 
+        strip.text.x = element_text(angle = 65)
+  ) +
+  geom_crossbar(data=starve3, aes(x = ft, y = mean, ymin = mean, ymax = mean), size=.5, col="black", width = .75) +
+	geom_text(data = starve3, aes(label=unlist(unname(pvals)) %>% as.character(), y=max(starve4$variable), angle = 90, hjust = 1), size=6) + 
+  labs(x = "fruit", y = "development time (d)")
+ggsave('fv_ag_starve_all-gvalTHENaval_clean.jpg', h=5,w=12, bg = "white")
+
+
+
+ ## this will give the pairwise pval differences
+empty_df <- data.frame(group = character(), pval = numeric(), chisq = numeric())
+
+for(i in names(table(starve2$fruit))) {
+  test_df <- starve2 %>% filter(fruit == i)
+  kw_out <- kruskal.test(test_df$variable ~ test_df$treatment)
+  new_df <- data.frame(group = as.character(i), pval = as.numeric(kw_out$p.value), chisq = as.numeric(kw_out$statistic))
+  empty_df <- rbind(empty_df, new_df)
+
+}
+
+empty_df %>% arrange(pval)
+#   group         pval       chisq
+# 1    LI 1.351081e-10 41.23320060
+# 2    BA 1.086688e-07 28.21306111
+# 3    OR 1.600608e-04 14.25000000
+# 4    FJ 7.925735e-03  7.05017858
+# 5    MA 3.502247e-02  4.44407920
+# 6    RP 5.756180e-02  3.60627844
+# 7    SP 3.315925e-01  0.94266861
+# 8    CA 8.515240e-01  0.03503421
+```
+
+## store clean starve data
+```{r}
+data_starvation_clean <- starve4 
+```
+
+# Dry weight - Gn/Ax
+## dryweight data - prep
+```{r}
+
+dry_weight <- read_xlsx('Dry Weight.xlsx')
+
+dw2 <- dry_weight %>%
+  mutate(normalized_weight = `Weight (mg)`/`# of flies`) %>%
+  tidyr::separate(col = Name, into = c("Fruit","Treatment","Vial"), sep = "-", remove = F) %>%
+  dplyr::select(-Vial) %>% 
+  mutate(Fruit = factor(toupper(Fruit))) %>%
+ # filter(!Fruit %in% c("BP","PA","TO","PO","FJ"), # get rid of lines with low replication or lacking both Ax and G values
+  filter(!Name == "BA-AX-2" # get rid of this one massive outlier
+         ) %>% droplevels()
+
+dw2$ft = with(dw2, interaction(Fruit,Treatment))
+
+  ## run test on interaction
+def <- kruskal.test(normalized_weight ~ ft, dw2)
+efg <- dunn.test(dw2$normalized_weight,dw2$ft, method = "bh", label = F, table=F)
+ghi <- cldList(comparison = efg$comparisons, p.value = efg$P.adjusted, threshold = 0.05)
+cld_df_counts <- ghi %>% dplyr::select(pvals = Letter, fruit = Group)
+
+# make means
+dw_mean <- dw2 %>%
+  ungroup() %>%
+  group_by(ft, Fruit) %>%
+  summarize(mean = mean(`normalized_weight`)) %>%
+  ungroup() %>%
+  inner_join(cld_df_counts, by = c("ft" = "fruit")) %>%
+  droplevels()
+
+metadata <- read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key") %>%
+  arrange(plot_order) %>%
+  dplyr::select(fruit) %>%
+  filter(fruit %in% levels(dw_mean$Fruit)) %>%
+  unlist() %>% unname() %>% as.character()
+
+dw_mean$fruit.x <- factor(dw_mean$Fruit, levels = metadata)
+dw_mean$fruit.x <- factor(dw_mean$fruit.x, labels = data.frame(levels(dw_mean$fruit.x)) %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, plotname) %>% distinct(), by = c("levels.dw_mean.fruit.x." = "fruit")) %>% mutate(plotname = gsub(pattern = "\\\\n", replacement = "\n",x = plotname, perl = T)) %>% dplyr::select(plotname) %>% unlist() %>% unname())
+dw_mean <- dw_mean %>%
+  inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, color) %>% distinct(), by = c("Fruit" = "fruit"))
+
+dw3 <- dw2 %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2"), by = c("ft" = "ft"))
+dw3$fruit.x <- factor(dw3$fruit, levels = metadata)
+levels(dw3$fruit.x)
+dw3$fruit.x <- factor(dw3$fruit.x, labels = data.frame(levels(dw3$fruit.x)) %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, plotname) %>% distinct() , by = c(`levels.dw3.fruit.x.` = "fruit")) %>% mutate(plotname = gsub(pattern = "\\\\n", replacement = "\n",x = plotname, perl = T)) %>% dplyr::select(plotname) %>% unlist() %>% unname())
+levels(dw3$fruit.x)
+
+dw3$ft <- factor(dw3$ft, levels = c(paste0(metadata,".G"),paste0(metadata, ".AX")))
+levels(dw3$ft)
+
+ggplot(dw3, aes(x = ft, y = normalized_weight, color = as.character(color))) +
+  facet_grid(.~fruit.x, drop = TRUE, space = "free", scales = "free") + 
+  geom_jitter(height = 0, size=1, width = 0.1) +
+  scale_color_identity() +
+  cowplot::theme_cowplot() +
+  theme(axis.text.x = element_text(angle = 90), 
+        strip.text.x = element_text(angle = 65)
+  ) +
+  geom_crossbar(data=dw_mean, aes(x = ft, y = mean, ymin = mean, ymax = mean), size=.5, col="black", width = .75) +
+	geom_text(data = dw_mean, aes(label=unlist(unname(pvals)) %>% as.character(), y=0.43, angle = 90, hjust = 1), size=6) + 
+  labs(x = "fruit", y = "flies per vial") + 
+  ylim(c(0,.43))
+ggsave('fv_ag_dw_all-gvalTHENaval.jpg', h=5,w=12, bg = "white")
+
+```
+
+## store dw data
+```{r}
+data_dw <- dw3 
+```
+
+## dryweight data - prep
+```{r}
+
+dry_weight <- read_xlsx('Dry Weight.xlsx')
+
+dw2 <- dry_weight %>%
+  mutate(normalized_weight = `Weight (mg)`/`# of flies`) %>%
+  tidyr::separate(col = Name, into = c("Fruit","Treatment","Vial"), sep = "-", remove = F) %>%
+  dplyr::select(-Vial) %>% 
+  mutate(Fruit = factor(toupper(Fruit))) %>%
+  filter(!Fruit %in% c("BP","PA","TO","PO","FJ"), # get rid of lines with low replication or lacking both Ax and G values
+         !Name == "BA-AX-2" # get rid of this one massive outlier
+         ) %>% droplevels()
+
+dw2$ft = with(dw2, interaction(Fruit,Treatment))
+
+  ## run test on interaction
+def <- kruskal.test(normalized_weight ~ ft, dw2)
+efg <- dunn.test(dw2$normalized_weight,dw2$ft, method = "bh", label = F, table=F)
+ghi <- cldList(comparison = efg$comparisons, p.value = efg$P.adjusted, threshold = 0.05)
+cld_df_counts <- ghi %>% dplyr::select(pvals = Letter, fruit = Group)
+
+# make means
+dw_mean <- dw2 %>%
+  ungroup() %>%
+  group_by(ft, Fruit) %>%
+  summarize(mean = mean(`normalized_weight`)) %>%
+  ungroup() %>%
+  inner_join(cld_df_counts, by = c("ft" = "fruit")) %>%
+  droplevels()
+
+metadata <- read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key") %>%
+  arrange(plot_order) %>%
+  dplyr::select(fruit) %>%
+  filter(fruit %in% levels(dw_mean$Fruit)) %>%
+  unlist() %>% unname() %>% as.character()
+
+dw_mean$fruit.x <- factor(dw_mean$Fruit, levels = metadata)
+dw_mean$fruit.x <- factor(dw_mean$fruit.x, labels = data.frame(levels(dw_mean$fruit.x)) %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, plotname) %>% distinct(), by = c("levels.dw_mean.fruit.x." = "fruit")) %>% mutate(plotname = gsub(pattern = "\\\\n", replacement = "\n",x = plotname, perl = T)) %>% dplyr::select(plotname) %>% unlist() %>% unname())
+dw_mean <- dw_mean %>%
+  inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, color) %>% distinct(), by = c("Fruit" = "fruit"))
+
+dw3 <- dw2 %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2"), by = c("ft" = "ft"))
+dw3$fruit.x <- factor(dw3$fruit, levels = metadata)
+levels(dw3$fruit.x)
+dw3$fruit.x <- factor(dw3$fruit.x, labels = data.frame(levels(dw3$fruit.x)) %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, plotname) %>% distinct() , by = c(`levels.dw3.fruit.x.` = "fruit")) %>% mutate(plotname = gsub(pattern = "\\\\n", replacement = "\n",x = plotname, perl = T)) %>% dplyr::select(plotname) %>% unlist() %>% unname())
+levels(dw3$fruit.x)
+
+dw3$ft <- factor(dw3$ft, levels = c(paste0(metadata,".G"),paste0(metadata, ".AX")))
+levels(dw3$ft)
+
+ggplot(dw3, aes(x = ft, y = normalized_weight, color = as.character(color))) +
+  facet_grid(.~fruit.x, drop = TRUE, space = "free", scales = "free") + 
+  geom_jitter(height = 0, size=1, width = 0.1) +
+  scale_color_identity() +
+  cowplot::theme_cowplot() +
+  theme(axis.text.x = element_blank(), 
+        strip.text.x = element_text(angle = 65)
+  ) +
+  geom_crossbar(data=dw_mean, aes(x = ft, y = mean, ymin = mean, ymax = mean), size=.5, col="black", width = .75) +
+	geom_text(data = dw_mean, aes(label=unlist(unname(pvals)) %>% as.character(), y=0.43, angle = 90, hjust = 1), size=6) + 
+  labs(x = "fruit", y = "flies per vial") + 
+  ylim(c(0,.43))
+ggsave('fv_ag_dw_all-gvalTHENaval_clean.jpg', h=5,w=12, bg = "white")
+
+## this will give the pairwise pval differences
+empty_df <- data.frame(group = character(), pval = numeric(), chisq = numeric())
+
+i = "AS"
+for(i in names(table(dw3$Fruit))) {
+  test_df <- dw3 %>% filter(Fruit == i)
+  kw_out <- kruskal.test(test_df$normalized_weight ~ test_df$treatment)
+  new_df <- data.frame(group = as.character(i), pval = as.numeric(kw_out$p.value), chisq = as.numeric(kw_out$statistic))
+  empty_df <- rbind(empty_df, new_df)
+
+}
+
+empty_df %>% arrange(pval)
+#    group       pval       chisq
+# 1     LI 0.08897301 2.892857143
+# 2     CL 0.11984616 2.419330289
+# 3     SP 0.14164469 2.160000000
+# 4     CA 0.17629637 1.828571429
+# 5     PR 0.53141570 0.391683708
+# 6     OR 0.53702438 0.381082666
+# 7     RP 0.56770917 0.326530612
+# 8     BA 0.66412226 0.188554698
+# 9     CO 0.66500554 0.187500000
+# 10    MA 0.87074564 0.026475013
+# 11    AS 0.92623564 0.008571429
+
+```
+
+## store dw data
+```{r}
+data_dw_clean <- dw3 
+```
+
+# Trait correlations - Gn/Ax
+##  merge starve, dev, and dw by vial - all 
+```{r}
+data_dev2 <- data_dev %>%
+  mutate(Name = paste(fruit2,treatment.x,replicate, sep = "-")) %>%
+  dplyr::select(Name, Fruit = fruit.x, Fruitcode = fruit.y, Treatment = treatment.x, replicate, dev_time = variable, experiment, color, plot_order) %>%
+  group_by(Name, Fruit,Fruitcode, Treatment, replicate, experiment, color, plot_order) %>%
+  summarize(mean_dev = mean(1/dev_time)) %>%
+  ungroup()
+data_dev2
+
+data_starvation2 <- data_starvation %>%
+  mutate(Name = paste(fruit2,treatment.x,replicate, sep = "-")) %>%
+  dplyr::select(Name, starve_time = variable) %>%
+  group_by(Name) %>%
+  summarize(mean_starve = mean(starve_time)) %>%
+  ungroup()
+data_starvation2
+
+data_dw2 <- data_dw %>%
+  group_by(Name) %>%
+  summarize(mean_weight = mean(normalized_weight)) %>%
+  ungroup()
+data_dw2
+
+all_data <- data_dev2 %>%
+  full_join(data_starvation2, by = "Name") %>%
+  full_join(data_dw2, by = "Name")
+
+cor.test(all_data$mean_dev, all_data$mean_starve)
+cor.test(all_data$mean_dev, all_data$mean_weight)
+cor.test(all_data$mean_weight, all_data$mean_starve)
+
+write.csv(all_data, "all_data.csv")
+
+ggplot(all_data, aes(x=mean_dev, y = mean_starve, color = as.character(color))) + 
+  geom_point() + 
+  scale_color_identity() +
+  theme_cowplot() + 
+  stat_smooth(data = all_data, color = "black", method = "lm", alpha = 0 ) + 
+  labs(x = bquote("Mean development rate ( day"^-1~")"), y = "Time to death (d)")
+
+ggplot(all_data, aes(x=mean_dev, y = mean_weight, color = as.character(color))) + 
+  geom_point() + 
+  scale_color_identity() +
+  theme_cowplot() + 
+  stat_smooth(data = all_data, color = "black", method = "lm", alpha = 0 ) + 
+  labs(x = bquote("Mean development rate ( day"^-1~")"), y = bquote("Mean dry weight fly"^-1~"(mg)"))
+
+ggplot(all_data, aes(x=mean_starve, y = mean_weight, color = as.character(color))) + 
+  geom_point() + 
+  scale_color_identity() +
+  theme_cowplot() + 
+  stat_smooth(data = all_data, color = "black", method = "lm", alpha = 0 ) + 
+  labs(x = "Time to death (d)", y = bquote("Mean dry weight fly"^-1~"(mg)"))
+
+
+all_data <- data_dev2 %>%
+  full_join(data_starvation2, by = "Name") %>%
+  full_join(data_dw2, by = "Name") %>% 
+  filter(Treatment == "AX")
+
+cor.test(all_data$mean_dev, all_data$mean_starve)
+cor.test(all_data$mean_dev, all_data$mean_weight)
+cor.test(all_data$mean_weight, all_data$mean_starve)
+
+ggplot(all_data, aes(x=mean_dev, y = mean_starve, color = as.character(color))) + 
+  geom_point() + 
+  scale_color_identity() +
+  theme_cowplot() + 
+  stat_smooth(data = all_data, color = "black", method = "lm", alpha = 0 ) + 
+  labs(x = bquote("Mean development rate ( day"^-1~")"), y = "Time to death (d)")
+
+ggplot(all_data, aes(x=mean_dev, y = mean_weight, color = as.character(color))) + 
+  geom_point() + 
+  scale_color_identity() +
+  theme_cowplot() + 
+  stat_smooth(data = all_data, color = "black", method = "lm", alpha = 0 ) + 
+  labs(x = bquote("Mean development rate ( day"^-1~")"), y = bquote("Mean dry weight fly"^-1~"(mg)"))
+
+ggplot(all_data, aes(x=mean_starve, y = mean_weight, color = as.character(color))) + 
+  geom_point() + 
+  scale_color_identity() +
+  theme_cowplot() + 
+  stat_smooth(data = all_data, color = "black", method = "lm", alpha = 0 ) + 
+  labs(x = "Time to death (d)", y = bquote("Mean dry weight fly"^-1~"(mg)"))
+
+
+all_data <- data_dev2 %>%
+  full_join(data_starvation2, by = "Name") %>%
+  full_join(data_dw2, by = "Name") %>% 
+  filter(Treatment == "G")
+
+cor.test(all_data$mean_dev, all_data$mean_starve)
+cor.test(all_data$mean_dev, all_data$mean_weight)
+cor.test(all_data$mean_weight, all_data$mean_starve)
+
+ggplot(all_data, aes(x=mean_dev, y = mean_starve, color = as.character(color))) + 
+  geom_point() + 
+  scale_color_identity() +
+  theme_cowplot() + 
+  stat_smooth(data = all_data, color = "black", method = "lm", alpha = 0 ) + 
+  labs(x = bquote("Mean development rate ( day"^-1~")"), y = "Time to death (d)")
+
+ggplot(all_data, aes(x=mean_dev, y = mean_weight, color = as.character(color))) + 
+  geom_point() + 
+  scale_color_identity() +
+  theme_cowplot() + 
+  stat_smooth(data = all_data, color = "black", method = "lm", alpha = 0 ) + 
+  labs(x = bquote("Mean development rate ( day"^-1~")"), y = bquote("Mean dry weight fly"^-1~"(mg)"))
+
+ggplot(all_data, aes(x=mean_starve, y = mean_weight, color = as.character(color))) + 
+  geom_point() + 
+  scale_color_identity() +
+  theme_cowplot() + 
+  stat_smooth(data = all_data, color = "black", method = "lm", alpha = 0 ) + 
+  labs(x = "Time to death (d)", y = bquote("Mean dry weight fly"^-1~"(mg)"))
+
+
+
+```
+
+##  merge starve, dev, and dw by vial - clean 
+```{r}
+data_dev2 <- data_dev_clean %>%
+  mutate(Name = paste(fruit2,treatment.x,replicate, sep = "-")) %>%
+  dplyr::select(Name, Fruit = fruit.x, Fruitcode = fruit.y, Treatment = treatment.x, replicate, dev_time = variable, experiment, color, plot_order) %>%
+  group_by(Name, Fruit,Fruitcode, Treatment, replicate, experiment, color, plot_order) %>%
+  summarize(mean_dev = mean(1/dev_time)) %>%
+  ungroup()
+
+data_dev2
+
+data_starvation2 <- data_starvation_clean %>%
+  mutate(Name = paste(fruit2,treatment.x,replicate, sep = "-")) %>%
+  dplyr::select(Name, starve_time = variable) %>%
+  group_by(Name) %>%
+  summarize(mean_starve = mean(starve_time)) %>%
+  ungroup()
+data_starvation2
+
+data_dw2 <- data_dw_clean %>%
+  group_by(Name) %>%
+  summarize(mean_weight = mean(normalized_weight)) %>%
+  ungroup()
+data_dw2
+
+all_data <- data_dev2 %>%
+  full_join(data_starvation2, by = "Name") %>%
+  full_join(data_dw2, by = "Name")
+
+cor.test(all_data$mean_dev, all_data$mean_starve)
+cor.test(all_data$mean_dev, all_data$mean_weight)
+cor.test(all_data$mean_weight, all_data$mean_starve)
+
+ggplot(all_data, aes(x=mean_dev, y = mean_starve, color = as.character(color))) + 
+  geom_point() + 
+  scale_color_identity() +
+  theme_cowplot() + 
+  stat_smooth(data = all_data, color = "black", method = "lm", alpha = 0 ) + 
+  labs(x = bquote("Mean development rate ( day"^-1~")"), y = "Time to death (d)")
+
+ggplot(all_data, aes(x=mean_dev, y = mean_weight, color = as.character(color))) + 
+  geom_point() + 
+  scale_color_identity() +
+  theme_cowplot() + 
+  stat_smooth(data = all_data, color = "black", method = "lm", alpha = 0 ) + 
+  labs(x = bquote("Mean development rate ( day"^-1~")"), y = bquote("Mean dry weight fly"^-1~"(mg)"))
+
+ggplot(all_data, aes(x=mean_starve, y = mean_weight, color = as.character(color))) + 
+  geom_point() + 
+  scale_color_identity() +
+  theme_cowplot() + 
+  stat_smooth(data = all_data, color = "black", method = "lm", alpha = 0 ) + 
+  labs(x = "Time to death (d)", y = bquote("Mean dry weight fly"^-1~"(mg)"))
+
+all_data <- data_dev2 %>%
+  full_join(data_starvation2, by = "Name") %>%
+  full_join(data_dw2, by = "Name") %>% 
+  filter(Treatment == "AX")
+
+cor.test(all_data$mean_dev, all_data$mean_starve)
+cor.test(all_data$mean_dev, all_data$mean_weight)
+cor.test(all_data$mean_weight, all_data$mean_starve)
+
+ggplot(all_data, aes(x=mean_dev, y = mean_starve, color = as.character(color))) + 
+  geom_point() + 
+  scale_color_identity() +
+  theme_cowplot() + 
+  stat_smooth(data = all_data, color = "black", method = "lm", alpha = 0 ) + 
+  labs(x = bquote("Mean development rate ( day"^-1~")"), y = "Time to death (d)")
+
+ggplot(all_data, aes(x=mean_dev, y = mean_weight, color = as.character(color))) + 
+  geom_point() + 
+  scale_color_identity() +
+  theme_cowplot() + 
+  stat_smooth(data = all_data, color = "black", method = "lm", alpha = 0 ) + 
+  labs(x = bquote("Mean development rate ( day"^-1~")"), y = bquote("Mean dry weight fly"^-1~"(mg)"))
+
+ggplot(all_data, aes(x=mean_starve, y = mean_weight, color = as.character(color))) + 
+  geom_point() + 
+  scale_color_identity() +
+  theme_cowplot() + 
+  stat_smooth(data = all_data, color = "black", method = "lm", alpha = 0 ) + 
+  labs(x = "Time to death (d)", y = bquote("Mean dry weight fly"^-1~"(mg)"))
+
+
+all_data <- data_dev2 %>%
+  full_join(data_starvation2, by = "Name") %>%
+  full_join(data_dw2, by = "Name") %>% 
+  filter(Treatment == "G")
+
+cor.test(all_data$mean_dev, all_data$mean_starve)
+cor.test(all_data$mean_dev, all_data$mean_weight)
+cor.test(all_data$mean_weight, all_data$mean_starve)
+
+ggplot(all_data, aes(x=mean_dev, y = mean_starve, color = as.character(color))) + 
+  geom_point() + 
+  scale_color_identity() +
+  theme_cowplot() + 
+  stat_smooth(data = all_data, color = "black", method = "lm", alpha = 0 ) + 
+  labs(x = bquote("Mean development rate ( day"^-1~")"), y = "Time to death (d)")
+
+ggplot(all_data, aes(x=mean_dev, y = mean_weight, color = as.character(color))) + 
+  geom_point() + 
+  scale_color_identity() +
+  theme_cowplot() + 
+  stat_smooth(data = all_data, color = "black", method = "lm", alpha = 0 ) + 
+  labs(x = bquote("Mean development rate ( day"^-1~")"), y = bquote("Mean dry weight fly"^-1~"(mg)"))
+
+ggplot(all_data, aes(x=mean_starve, y = mean_weight, color = as.character(color))) + 
+  geom_point() + 
+  scale_color_identity() +
+  theme_cowplot() + 
+  stat_smooth(data = all_data, color = "black", method = "lm", alpha = 0 ) + 
+  labs(x = "Time to death (d)", y = bquote("Mean dry weight fly"^-1~"(mg)"))
+
+
+```
+
+# Treatment correlations
+## compare cv and gn data
+```{r}
+
+
+setwd('~/Dropbox/fruitandveggie/')
+read_in_data <- function(filepath, sheet_name) {
+starvation <- read_xlsx(filepath, sheet = sheet_name, skip = 5, col_names = T) %>%
+  reshape2::melt(id.vars = "vial")
+}
+
+cv_starve <- read_in_data('~/Dropbox/fruitandveggie/Development_JMC.xlsx',"Dev 1") %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/Development_JMC.xlsx',"Dev 2")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/Development_JMC.xlsx',"Dev 3")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/Development_JMC.xlsx',"Dev 4")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/Development_JMC.xlsx',"Dev 5")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/Development_JMC.xlsx',"Dev 6")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/Development_JMC.xlsx',"Dev 7")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/Development_JMC.xlsx',"Dev 8")) %>%
+  rbind(read_in_data('~/Dropbox/fruitandveggie/Development_JMC.xlsx',"Dev 9")) %>% 
+  filter(!is.na(value) & !value=="DONE" & value != 0) %>%
+  mutate(value = as.numeric(as.character(value))) %>%
+  mutate(variable = round(as.numeric(as.character(variable)),1)) %>%
+  tidyr::uncount(value) %>% 
+  mutate(event = 1)
+table(cv_starve$variable)
+cv_starve[1,]
+## manually set the 0 values
+table(cv_starve$event)
+for (i in 1:dim(cv_starve)[1]) {
+  if(cv_starve[i,"variable"] == "14.1") {
+    if(cv_starve[i,"vial"] %in% c("MA-E-7","MA-E-9")) {
+      cv_starve[i,"event"] = 0
+    }
+  } else if(cv_starve[i,"variable"] == "16.1") {
+    if(cv_starve[i,"vial"] %in% c("LI-E-3","CA-E-1","CA-E-3","MA-E-3","PR-E-1","PR-E-2","PR-E-3","RP-E-1","HC-E-2")) {
+      cv_starve[i,"event"] = 0
+    }
+  }
+}
+cv_starve[1,]
+cv_starve2 <- cv_starve %>% 
+  rowwise() %>%
+  tidyr::separate(col = vial, into = c("fruit","treatment","replicate")) %>%
+  mutate(experiment = ifelse(replicate %in% c(1:3), "expA",ifelse(replicate %in% c(4:6), "expB",ifelse(replicate%in% c(7:9),"expC","expD")))) %>%
+  mutate(treatment = factor(as.character(treatment)),
+         replicate = factor(as.character(replicate)),
+         fruit  = factor(as.character(fruit)),
+          experiment = factor(as.character(experiment))
+         )#
+#  inner_join(read_xlsx('~/Dropbox/fruitandveggie/Development_JMC.xlsx', sheet = "Key"), by = "fruit")
+
+metadata <- read_xlsx('~/Dropbox/fruitandveggie/Development_JMC.xlsx', sheet = "Key") %>%
+  arrange(plot_order) %>%
+  dplyr::select(fruit) %>%
+  unlist() %>% unname() %>% as.character()
+
+cv_starve2$fruit2 <- factor(cv_starve2$fruit, levels = metadata)
+
+cv_starve3 <- cv_starve2 %>%
+  filter(event == 1) %>%
+  group_by(fruit) %>%
+   summarize(mean = mean(variable), sd = sd(variable)/sqrt(dplyr::n())) %>%
+# summarize(mean = mean(variable), sd = sd(variable)) %>%
+  ungroup() 
+
+starve2 <- starve %>% 
+  rowwise() %>%
+  tidyr::separate(col = vial, into = c("fruit","treatment","replicate")) %>%
+  mutate(experiment = ifelse(replicate %in% c(1:3), "expA",ifelse(replicate %in% c(4:6), "expB",ifelse(replicate%in% c(7:9),"expC",ifelse(replicate%in%c(10:12),"expD","expE"))))) %>%
+  mutate(treatment = factor(as.character(treatment)),
+         replicate = factor(as.character(replicate)),
+         fruit  = factor(as.character(fruit)),
+          experiment = factor(as.character(experiment))
+         )#
+#  inner_join(read_xlsx('~/Dropbox/fruitandveggie/Development_JMC.xlsx', sheet = "Key"), by = "fruit")
+
+starve2 <- starve2 %>%
+  mutate(fe = paste0(toupper(fruit), gsub(pattern = "exp",replacement = "",x = experiment))) %>%
+  filter(fe %in% toupper(c("asa","caa","fja","lia","maa","ora","spa","asb","bab","cab","mab","pob","rpb","spb","cac","coc","fjc","poc","cod","lid","tod")))
+
+metadata <- read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key") %>%
+  arrange(plot_order) %>%
+  dplyr::select(fruit) %>%
+  unlist() %>% unname() %>% as.character()
+
+starve2$fruit2 <- factor(starve2$fruit, levels = metadata)
+levels(starve2$fruit)
+
+starve2 <- starve2 %>% droplevels()
+
+
+starve2$S <- survival::Surv(starve2$variable, starve2$event)
+starve2$ft <- with(starve2, interaction(fruit, treatment))
+starve2$tf <- with(starve2, interaction(treatment, fruit))
+starve2[1,]
+table(starve2$tf)
+names(table(starve2$ft))
+
+starve3 <- starve2 %>%
+  filter(event == 1) %>%
+  group_by(ft,fruit) %>%
+  summarize(mean = mean(variable), sd = sd(variable)/sqrt(dplyr::n())) %>%
+#  summarize(mean = mean(variable), sd = sd(variable)) %>%
+  ungroup() %>%
+  inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2"), by = c("ft" = "ft")) %>%
+  inner_join(cld_df, by = c("ft" = "fruit"))
+
+
+gn <- starve3 %>% 
+  filter(treatment == "G") %>% 
+  droplevels() %>% 
+  inner_join(starve3 %>% 
+               filter(treatment == "X") %>%
+               droplevels(),
+             by = c("fruit.x")
+               )
+
+cv_gn <- gn %>% 
+  inner_join(cv_starve3, by = c("fruit.y.x" = "fruit"))
+
+ggplot(cv_gn, aes(x=mean.x, y = mean.y, label=fruit.x)) +
+  geom_errorbar(aes(ymin = mean.y-sd.y, ymax=mean.y+sd.y)) +
+  geom_errorbarh(aes(xmin = mean.x-sd.x, xmax=mean.x+sd.x)) +
+    geom_label() + 
+  geom_abline(slope = 1, intercept = 0, col = "blue") +
+  labs(x="Gnotobiotic", y = "Axenic")+
+  lims(x=c(8,14),y=c(8,14))
+
+ggplot(cv_gn, aes(x=mean.x, y = mean, label=fruit.x)) +
+  geom_errorbar(aes(ymin = mean-sd, ymax=mean+sd)) +
+  geom_errorbarh(aes(xmin = mean.x-sd.x, xmax=mean.x+sd.x)) +
+    geom_label() + 
+  geom_abline(slope = 1, intercept = 0, col = "blue") +
+  labs(x="Gnotobiotic", y = "Conventional")+
+  lims(x=c(8,14),y=c(8,14))
+
+ggplot(cv_gn, aes(x=mean.y, y = mean, label=fruit.x)) +
+  geom_errorbar(aes(ymin = mean-sd, ymax=mean+sd)) +
+  geom_errorbarh(aes(xmin = mean.y-sd.y, xmax=mean.y+sd.y)) +
+    geom_label() + 
+  geom_abline(slope = 1, intercept = 0, col = "blue") +
+  labs(x="Axenic", y = "Conventional")+
+  lims(x=c(8,14),y=c(8,14))
+
+## medians and sds
+starve3med <- starve2 %>%
+  filter(event == 1) %>%
+  mutate(vial = paste0(fruit,treatment,replicate,experiment)) %>%
+  group_by(ft,fruit,vial, experiment) %>%
+  summarize(medvial =median(variable, na.rm=T)) %>%
+  ungroup() %>%
+  group_by(ft, fruit) %>%
+  summarize(mean = mean(medvial), sd = sd(medvial)/sqrt(dplyr::n())) %>%
+#  summarize(mean = mean(medvial), sd = sd(medvial)) %>%
+  ungroup() %>%
+  inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2"), by = c("ft" = "ft")) %>%
+  inner_join(cld_df, by = c("ft" = "fruit"))
+
+cv_starve3med <- cv_starve2 %>%
+  filter(event == 1) %>%
+  mutate(vial = paste0(fruit,treatment,replicate,experiment)) %>%
+  group_by(fruit, vial) %>%
+  summarize(medvial =median(variable)) %>%
+  ungroup() %>%
+  group_by(fruit) %>%
+  summarize(mean = mean(medvial), sd = sd(medvial)/sqrt(dplyr::n())) %>%
+  #summarize(mean = mean(medvial), sd = sd(medvial)) %>%
+  ungroup() 
+
+ starve3med$fruit.x <- factor(starve3med$fruit.x, labels = c("Acorn squash","Banana","Carrot","Corn","Apple", "Lime", "Mango","Orange","Potato","Peach","Spaghetti squash","Tomato"))
+
+cv_gnmed <- starve3med %>% 
+  filter(treatment == "G") %>% 
+  droplevels() %>% 
+  inner_join(starve3med %>% 
+               filter(treatment == "X") %>%
+               droplevels(),
+             by = c("fruit.x")
+               ) %>% 
+  inner_join(cv_starve3med, by = c("fruit.y.x" = "fruit"))
+
+minval=7.5
+maxval=14.5
+ggplot(cv_gnmed, aes(x=mean.x, y = mean.y, label=fruit.x)) +
+  geom_errorbar(aes(ymin = mean.y-sd.y, ymax=mean.y+sd.y)) +
+  geom_errorbarh(aes(xmin = mean.x-sd.x, xmax=mean.x+sd.x)) +
+    geom_label(size=2) + 
+  geom_abline(slope = 1, intercept = 0, col = "blue") +
+  labs(x="development time (d) - Gnotobiotic flies", y = "development time (d) - Axenic flies")+
+  lims(x=c(minval,maxval),y=c(minval,maxval)) + theme_cowplot()
+ggsave('gnVax_devchart.jpg', bg="white", h=7, w=7)
+
+ggplot(cv_gnmed, aes(x=mean, y = mean.x, label=fruit.x)) +
+  geom_errorbar(aes(ymin = mean.x-sd.x, ymax=mean.x+sd.x)) +
+  geom_errorbarh(aes(xmin = mean-sd, xmax=mean+sd)) +
+    geom_label() + 
+  geom_abline(slope = 1, intercept = 0, col = "blue") +
+  labs(x="Conventional", y = "Gnotobiotic")+
+  lims(x=c(minval,maxval),y=c(minval,maxval)) + theme_cowplot()
+
+ggplot(cv_gnmed, aes(x=mean.x, y = mean, label=fruit.x)) +
+  geom_errorbar(aes(ymin = mean-sd, ymax=mean+sd)) +
+  geom_errorbarh(aes(xmin = mean.x-sd.x, xmax=mean.x+sd.x)) +
+    geom_label(size=2) + 
+  geom_abline(slope = 1, intercept = 0, col = "blue") +
+  labs(x="development time (d) - Gnotobiotic flies", y = "development time (d) - Conventional flies")+
+  lims(x=c(minval,maxval),y=c(minval,maxval)) + theme_cowplot()
+ggsave('gnVcv_devchart.jpg', bg="white", h=7, w=7)
+
+
+ggplot(cv_gnmed, aes(x=mean, y = mean.y, label=fruit.x)) +
+  geom_errorbar(aes(ymin = mean.y-sd.y, ymax=mean.y+sd.y)) +
+  geom_errorbarh(aes(xmin = mean-sd, xmax=mean+sd)) +
+    geom_label() + 
+  geom_abline(slope = 1, intercept = 0, col = "blue") +
+  labs(x="Conventional", y = "Axenic")+
+  lims(x=c(minval,maxval),y=c(minval,maxval)) + theme_cowplot()
+```
+
+## cv jitter plot
+```{r}
+
+cv_starve4 <- cv_starve2 %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/Development_JMC.xlsx', sheet = "Key"), by = c("fruit"))
+table(cv_starve4$ft)
+table(cv_starve4$variable)
+table(cv_starve4$color)
+
+cv_starve3$fruit <- factor(cv_starve3$fruit, labels = c("Acorn squash","Avocado","Bell pepper","Carrot","Cherry","Cantaloupe","Corn","Cherry tomato","Cucumber","Apple (Fuji)","Apple (Honeycrisp)","Lemon","Lime","Mango","Orange","Apple (Pink lady)","Potato","Pear","Peach (red)", "Spaghetti squash","Tomato","Peach (yellow)"))
+
+cv_starve3$fruit <- factor(cv_starve3$fruit, levels = c("Carrot","Cucumber","Bell pepper","Corn","Avocado","Potato","Acorn squash","Spaghetti squash","Tomato","Cherry tomato","Cantaloupe","Cherry","Pear","Apple (Fuji)","Apple (Honeycrisp)","Apple (Pink lady)","Peach (red)","Peach (yellow)","Mango", "Lemon","Lime","Orange"))
+
+cv_starve4$fruit <- factor(cv_starve4$fruit)
+cv_starve4$fruit <- factor(cv_starve4$fruit, labels = c("Acorn squash","Avocado","Bell pepper","Carrot","Cherry","Cantaloupe","Corn","Cherry tomato","Cucumber","Apple (Fuji)","Apple (Honeycrisp)","Lemon","Lime","Mango","Orange","Apple (Pink lady)","Potato","Pear","Peach (red)", "Spaghetti squash","Tomato","Peach (yellow)"))
+cv_starve4$fruit <- factor(cv_starve4$fruit, levels = c("Carrot","Cucumber","Bell pepper","Corn","Avocado","Potato","Acorn squash","Spaghetti squash","Tomato","Cherry tomato","Cantaloupe","Cherry","Pear","Apple (Fuji)","Apple (Honeycrisp)","Apple (Pink lady)","Peach (red)","Peach (yellow)","Mango", "Lemon","Lime","Orange"))
+
+ggplot(cv_starve4, aes(x = fruit, y = variable, color = as.character(color))) +
+#  facet_grid(.~fruit, drop = TRUE, space = "free", scales = "free") + 
+  geom_jitter(height = 0.3, size=.3) +
+#  scale_x_discrete(labels = unlist(starve3$fruitname)) + 
+  scale_color_identity() +
+  cowplot::theme_cowplot() +
+  theme(axis.text.x = element_text(angle = 90), plot.title = element_text(hjust=1)) + 
+  geom_crossbar(data=cv_starve3, aes(x = fruit, y = mean, ymin = mean, ymax = mean), size=.5, col="black", width = .75) +
+#  geom_errorbar(aes(ymin = mean-sem, ymax = mean+sem))+
+#	geom_text(aes(label=unlist(unname(pvals)) %>% as.character(), y=mean+sem, angle = 90, hjust = -0.35), size=6) + 
+  labs(x = "fruit", y = "development time (d)") +
+	geom_text(data = cv_starve3, aes(x=fruit, y=mean+0.4, fill = "white"), label=c("bcd","jl","ij","j","b","km","bf","b","lm","klm","i","cgk","ab","h","adef","adh","g","g","ae","g","eh","m"), angle = 0, hjust = 0.5, color="black", alpha = 1) +
+#	geom_label(data = cv_starve3, aes(x=fruit, y=mean+0.4, fill = "white"), label=c("bcd","jl","ij","j","b","km","bf","b","lm","klm","i","cgk","ab","h","adef","adh","g","g","ae","g","eh","m"), angle = 0, hjust = 0.5) +
+  labs(title = bquote(chi^2~''[21*`,`*3675]*` = `*1835*`, p < `*10^-15))
+                        
+                        [4*`,`*41]*`=`*0.94*`, R`^2*` = `*0.08*`,p = `*'0.47;   Relative: F'[4*`,`*41]*`=`*0.88*`, R`^2*` = `*0.08*`, p = `*0.81))
+
+
+  
+ggsave('cv_dev.jpg', h=5,w=12, bg = "white")
+
+
+cv_starve2$S <- survival::Surv(cv_starve2$variable, cv_starve2$event)
+model_all <- survdiff(S ~ fruit, data = cv_starve2)
+
+dim(cv_starve2)
+```
+
+## GN jitter plot
+```{r}
+
+starve5 <- starve3
+
+starve6 <- starve2 %>% left_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2"), by = c("ft" = "ft"))
+table(starve6$ft)
+table(starve6$variable)
+table(starve6$color)
+
+starve5$fruit.x <- factor(starve5$fruit.x, labels = c("Acorn\nsquash","Banana","Carrot","Corn","Apple\n(Fuji)","Lime","Mango","Orange","Potato","Peach\n(red)", "Spaghetti\nsquash","Tomato"))
+
+starve5$fruit.x <- factor(starve5$fruit.x, levels = c("Carrot","Banana","Corn","Potato","Acorn\nsquash","Spaghetti\nsquash","Tomato","Apple\n(Fuji)","Peach\n(red)","Mango","Lime","Orange"))
+
+starve6$fruit.x <- factor(starve6$fruit.x, labels = c("Acorn\nsquash","Banana","Carrot","Corn","Apple\n(Fuji)","Lime","Mango","Orange","Potato","Peach\n(red)", "Spaghetti\nsquash","Tomato"))
+starve6$fruit.x <- factor(starve6$fruit.x, levels = c("Carrot","Banana","Corn","Potato","Acorn\nsquash","Spaghetti\nsquash","Tomato","Apple\n(Fuji)","Peach\n(red)","Mango","Lime","Orange"))
+
+dev.off()
+ggplot(starve6, aes(x = ft, y = variable, color = as.character(color))) +
+  facet_grid(.~fruit.x, drop = TRUE, space = "free", scales = "free") + 
+  geom_jitter(height = 0.3, size=.3) +
+#  scale_x_discrete(labels = unlist(starve5$fruitname)) + 
+  scale_color_identity() +
+  cowplot::theme_cowplot() +
+  theme(axis.text.x = element_text(angle = 90), plot.title = element_text(hjust=1)) + 
+  geom_crossbar(data=starve5, aes(x = ft, y = mean, ymin = mean, ymax = mean), size=.5, col="black", width = .75) +
+#  geom_errorbar(aes(ymin = mean-sem, ymax = mean+sem))+
+#	geom_text(aes(label=unlist(unname(pvals)) %>% as.character(), y=mean+sem, angle = 90, hjust = -0.35), size=6) + 
+  labs(x = "fruit", y = "development time (d)") +
+  scale_x_discrete(labels = c(rep(c("Ax","Gn"),12))) +
+  labs(title = bquote(chi^2~''[23*`,`*3980]*` = `*1154*`, p < `*10^-15))
+
+ggsave('fv_ag_dev.jpg', h=5,w=12, bg = "white")
+
+dim(starve2)
+4004
+ Chisq= 1154  on 23 degrees of freedom, p= <2e-16 
+```
+
+
+```{r}
+
+
+starve2[1,]
+cv_starve2[1,]
+
+starve2$experiment
+all_starve <- starve2 %>% 
+  dplyr::select(fruit, treatment, replicate, variable, event, experiment, fruit2) %>%
+  rbind(cv_starve2 %>% 
+          mutate(experiment = gsub(pattern = "exp",replacement = "Exp",x = experiment))
+        ) %>%
+  mutate(ft = paste0(fruit,"_",treatment))
+   
+table(all_starve$treatment)
+table(all_starve$ft)
+all_starve %>% 
+j
+
+
+
+
+
+
+
+
+
+
+
+ggplot(starve4, aes(x = ft, y = variable, color = as.character(color))) +
+  facet_grid(.~fruit.x, drop = TRUE, space = "free", scales = "free") + 
+  geom_jitter(height = 0.3, size=.3) +
+#  scale_x_discrete(labels = unlist(starve3$fruitname)) + 
+  scale_color_identity() +
+  cowplot::theme_cowplot() +
+  theme(axis.text.x = element_text(angle = 90)) + 
+  geom_crossbar(data=starve3, aes(x = ft, y = mean, ymin = mean, ymax = mean), size=.5, col="black", width = .75) +
+#  geom_errorbar(aes(ymin = mean-sem, ymax = mean+sem))+
+#	geom_text(aes(label=unlist(unname(pvals)) %>% as.character(), y=mean+sem, angle = 90, hjust = -0.35), size=6) + 
+  labs(x = "fruit", y = "development time (d)")
+ggsave('fv_ag_dev.jpg', h=5,w=12, bg = "white")
+  getwd()
+
+ggplot(starve3, aes(x = ft, y = mean, fill = color)) +
+  facet_grid(.~fruit.x, drop = TRUE, space = "free", scales = "free") + 
+  geom_col() +
+#  scale_x_discrete(labels = unlist(starve3$fruitname)) + 
+  scale_fill_identity() +
+  cowplot::theme_cowplot() +
+  theme(axis.text.x = element_text(angle = 90)) + 
+  geom_errorbar(aes(ymin = mean-sem, ymax = mean+sem))+
+	geom_text(aes(label=unlist(unname(pvals)) %>% as.character(), y=mean+sem, angle = 90, hjust = -0.35), size=6) + 
+  labs(x = "fruit", y = "mean development time (d)")
+ggsave('fv_agegg_dev.jpg', h=5, w=12, bg="white")
+
+
+starve4 <- starve2 %>%
+  filter(event == 1) %>%
+  group_by(fruit2,fruit,replicate,experiment) %>%
+  summarize(mean1 = mean(variable)) %>%
+  ungroup() %>%
+  group_by(fruit2,fruit,experiment) %>%
+  summarize(mean2 = mean(mean1)) %>%
+  ungroup() %>%
+  group_by(fruit2,fruit) %>%
+  summarize(mean = mean(mean2), sem = sd(mean2)/sqrt(dplyr::n()), n = dplyr::n()) %>%
+  ungroup() %>%
+  inner_join(read_xlsx('~/Dropbox/fruitandveggie/Development_JMC.xlsx', sheet = "Key"), by = c("fruit" = "fruit")) %>%
+  inner_join(cld_df, by = c("fruit"))
+
+ggplot(dev_data4, aes(x = fruit2, y = mean, fill = color)) +
+  geom_col() +
+  scale_x_discrete(labels = unlist(starve3$fruitname)) + 
+  scale_fill_identity() +
+  cowplot::theme_cowplot() +
+  theme(axis.text.x = element_text(angle = 90)) + 
+  geom_errorbar(aes(ymin = mean-sem, ymax = mean+sem))+
+	geom_text(aes(label=unlist(unname(pvals)) %>% as.character(), y=mean+sem, angle = 90, hjust = -0.35), size=6) + 
+  labs(x = "fruit", y = "mean time to death (d)")
+ggsave('fv_cvegg_dev_expmean.jpg')
+
+dev_data <- starve
+dev_data2 <- starve2
+dev_data3 <- starve3
+dev_data4 <- starve4
+
+
+i = "AS"
+for(i in names(table(starve2$fruit))) {
+  starve_test <- starve2 %>% filter(fruit == i)
+  model_all <- pairwise_survdiff(S ~ ft, data = starve_test, p.adjust.method = "BH")
+  if (model_all$p.value < 0.05) {
+    print(paste0(i," ", model_all$p.value))
+  }
+}
+```
+
+
+```{r}
+i = "AS"
+for(i in names(table(starve2$fruit))) {
+  starve_test <- starve2 %>% filter(fruit == i)
+  model_all <- pairwise_survdiff(S ~ ft, data = starve_test, p.adjust.method = "BH")
+  if (model_all$p.value < 0.05) {
+    print(paste0(i," ", model_all$p.value))
+  }
+}
+
+x <- starve2$ft
+levs <- levels(x)
+y <- Surv(starve2$event,rep(1,length(starve2$variable))) 
+lvl_order <- levels(x)[order(tapply(as.numeric(y)[1:length(x)], 
+                                    x, mean))]
+
+comps <- as_tibble(model_all$p.value, rownames="row") %>% 
+  tidyr::pivot_longer(-row, names_to="col", values_to="p") %>% 
+  na.omit()
+
+mycomps <- as.matrix(comps[,1:2])
+signif <- comps$p < .05
+
+clds <- multcomp:::insert_absorb(signif, 
+                                 decreasing=FALSE, 
+                                 comps=mycomps, 
+                                 lvl_order=lvl_order)
+
+cld_df <- clds$Letters %>% data.frame() %>% rename(pvals = ".") %>% mutate(fruit = rownames(.))
+colnames(cld_df)
+
+```
+
+## starve data
+```{r}
+
+
+setwd('~/Dropbox/fruitandveggie/')
+
+filepath = '~/Dropbox/fruitandveggie/Starvation_JMC.xlsx'
+sheet_name = "Starvation 1"
+read_in_starve_data <- function(filepath, sheet_name) {
+  starvation <- read_xlsx(filepath, sheet = sheet_name, skip = 5, col_names = T)
+  for(j in 1:dim(starvation)[1]) {
+    for(i in dim(starvation)[2]:3) {
+      if(!is.na(starvation[j,i])) {
+        starvation[j,i] <- starvation[j,i]-starvation[j,(i-1)]
+      }
+    }
+  }
+  return(starvation %>% reshape2::melt(id.vars = "vial"))
+}
+
+starve <- read_in_starve_data('~/Dropbox/fruitandveggie/Starvation_JMC.xlsx',"Starvation 1") %>%
+  rbind(read_in_starve_data('~/Dropbox/fruitandveggie/Starvation_JMC.xlsx',"Starvation 2")) %>%
+  rbind(read_in_starve_data('~/Dropbox/fruitandveggie/Starvation_JMC.xlsx',"Starvation 3"))
+
+table(starve$vial)
+table(starve$variable)
+table(starve$value)
+
+starve <- starve %>%
+  filter(!is.na(value) & !value=="DONE" & value != 0) %>%
+  mutate(value = as.numeric(as.character(value))) %>%
+  mutate(variable = round(as.numeric(as.character(variable)),1)) %>%
+  tidyr::uncount(value) %>% 
+  mutate(event = 1)
+
+str(starve)
+
+starve2 <- starve %>% 
+  rowwise() %>%
+  tidyr::separate(col = vial, into = c("fruit","treatment","replicate")) %>%
+  mutate(experiment = ifelse(replicate %in% c(1:3), "expA",ifelse(replicate %in% c(4:6), "expB",ifelse(replicate%in% c(7:9),"expC","expD")))) %>%
+  mutate(treatment = factor(as.character(treatment)),
+         replicate = factor(as.character(replicate)),
+         fruit  = factor(as.character(fruit)),
+          experiment = factor(as.character(experiment))
+         )#
+#  inner_join(read_xlsx('~/Dropbox/fruitandveggie/Development_JMC.xlsx', sheet = "Key"), by = "fruit")
+
+
+metadata <- table(starve2$fruit) %>% data.frame() %>% arrange(Freq) %>% filter(Freq > 14) %>% dplyr::select(Var1) %>% unlist() %>% unname() %>% as.character()
+
+starve2 <- starve2 %>% filter(fruit %in% metadata) %>% droplevels()
+
+metadata2 <- read_xlsx('~/Dropbox/fruitandveggie/Development_JMC.xlsx', sheet = "Key") %>%
+  filter(fruit %in% metadata) %>%
+  arrange(plot_order) %>%
+  dplyr::select(fruit) %>%
+  unlist() %>% unname() %>% as.character()
+
+starve2$fruit2 <- factor(starve2$fruit, levels = metadata2)
+levels(starve2$fruit2)
+
+starve2$S <- survival::Surv(starve2$variable, starve2$event)
+model_all <- pairwise_survdiff(S ~ fruit, data = starve2, p.adjust.method = "BH")
+x <- starve2$fruit
+levs <- levels(x)
+y <- Surv(starve2$event,rep(1,length(starve2$variable))) 
+lvl_order <- levels(x)[order(tapply(as.numeric(y)[1:length(x)], 
+                                    x, mean))]
+
+comps <- as_tibble(model_all$p.value, rownames="row") %>% 
+  tidyr::pivot_longer(-row, names_to="col", values_to="p") %>% 
+  na.omit()
+
+mycomps <- as.matrix(comps[,1:2])
+signif <- comps$p < .05
+
+clds <- multcomp:::insert_absorb(signif, 
+                                 decreasing=FALSE, 
+                                 comps=mycomps, 
+                                 lvl_order=lvl_order)
+
+cld_df <- clds$Letters %>% data.frame() %>% rename(pvals = ".") %>% mutate(fruit = rownames(.))
+
+cld_df
+colnames(cld_df)
+
+jpeg(width = 11.4, height = 10, filename = "fv_cvegg_starve_km.jpg", units = "in", res = 300)
+plot(survfit(S ~ fruit2, starve2), 
+     xlim=c(0,6), 
+     col = read_xlsx('~/Dropbox/fruitandveggie/Development_JMC.xlsx', sheet = "Key") %>% filter(fruit %in% metadata) %>% arrange(plot_order) %>%  dplyr::select(color) %>%  unlist() %>% unname() %>% as.character(),
+     lty = read_xlsx('~/Dropbox/fruitandveggie/Development_JMC.xlsx', sheet = "Key") %>% filter(fruit %in% metadata) %>% arrange(plot_order) %>%  dplyr::select(lwd) %>%  unlist() %>% unname() %>% as.numeric(as.character()),
+     lwd = 3, xlab = "time (d)", ylab = "fractional survival"
+)
+legend(x=4.8, y=1, 
+       legend = read_xlsx('~/Dropbox/fruitandveggie/Development_JMC.xlsx', sheet = "Key") %>% filter(fruit %in% metadata) %>% arrange(plot_order) %>%  dplyr::select(fruitname) %>%  unlist() %>% unname() %>% as.character(),
+       col = read_xlsx('~/Dropbox/fruitandveggie/Development_JMC.xlsx', sheet = "Key") %>% filter(fruit %in% metadata) %>% arrange(plot_order) %>%  dplyr::select(color) %>%  unlist() %>% unname() %>% as.character(),
+       lty = read_xlsx('~/Dropbox/fruitandveggie/Development_JMC.xlsx', sheet = "Key") %>% filter(fruit %in% metadata) %>% arrange(plot_order) %>%  dplyr::select(lwd) %>%  unlist() %>% unname() %>% as.numeric(as.character()),
+       lwd=3, bty = "n", cex=1
+       )
+dev.off()
+
+## maybe revise this to do a vial-wide 
+
+starve2[1,]
+starve3 <- starve2 %>%
+  filter(event == 1) %>%
+  group_by(fruit2,fruit) %>%
+  summarize(mean = mean(variable), sem = sd(variable)/sqrt(dplyr::n()), n = dplyr::n()) %>%
+  ungroup() %>%
+  inner_join(read_xlsx('~/Dropbox/fruitandveggie/Development_JMC.xlsx', sheet = "Key"), by = c("fruit" = "fruit")) %>%
+  inner_join(cld_df, by = c("fruit"))
+  
+ggplot(starve3, aes(x = fruit2, y = mean, fill = color)) +
+  geom_col() +
+  scale_x_discrete(labels = unlist(starve3$fruitname)) + 
+  scale_fill_identity() +
+  cowplot::theme_cowplot() +
+  theme(axis.text.x = element_text(angle = 90)) + 
+  geom_errorbar(aes(ymin = mean-sem, ymax = mean+sem))+
+	geom_text(aes(label=unlist(unname(pvals)) %>% as.character(), y=mean+sem, angle = 90, hjust = -0.35), size=6) + 
+  labs(x = "fruit", y = "mean development time (d)")
+ggsave('fv_cvegg_starve.jpg')
+
+starve4 <- starve2 %>%
+  filter(event == 1) %>%
+  group_by(fruit2,fruit,replicate,experiment) %>%
+  summarize(mean1 = mean(variable)) %>%
+  ungroup() %>%
+  group_by(fruit2,fruit,experiment) %>%
+  summarize(mean2 = mean(mean1)) %>%
+  ungroup() %>%
+  group_by(fruit2,fruit) %>%
+  summarize(mean = mean(mean2), sem = sd(mean2)/sqrt(dplyr::n()), n = dplyr::n()) %>%
+  ungroup() %>%
+  inner_join(read_xlsx('~/Dropbox/fruitandveggie/Development_JMC.xlsx', sheet = "Key"), by = c("fruit" = "fruit")) %>%
+  inner_join(cld_df, by = c("fruit"))
+
+ggplot(starve4, aes(x = fruit2, y = mean, fill = color)) +
+  geom_col() +
+  scale_x_discrete(labels = unlist(starve3$fruitname)) + 
+  scale_fill_identity() +
+  cowplot::theme_cowplot() +
+  theme(axis.text.x = element_text(angle = 90)) + 
+  geom_errorbar(aes(ymin = mean-sem, ymax = mean+sem))+
+	geom_text(aes(label=unlist(unname(pvals)) %>% as.character(), y=mean+sem, angle = 90, hjust = -0.35), size=6) + 
+  labs(x = "fruit", y = "mean time to death (d)")
+ggsave('fv_cvegg_starve_expmean.jpg')
+
+
+```
+
+```{r}
+
+dev_data2[1,]
+dev_data5 <- dev_data2 %>%
+  mutate(dev_rate = 1/variable) %>%
+  filter(event == 1) %>%
+  group_by(fruit2,fruit,replicate,experiment) %>%
+  summarize(mean1 = mean(dev_rate)) %>%
+  ungroup() %>%
+  group_by(fruit2,fruit,experiment) %>%
+  summarize(mean2 = mean(mean1)) %>%
+  ungroup() %>%
+  group_by(fruit2,fruit) %>%
+  summarize(mean = mean(mean2), sem = sd(mean2)/sqrt(dplyr::n()), n = dplyr::n()) %>%
+  ungroup() %>%
+  inner_join(read_xlsx('~/Dropbox/fruitandveggie/Development_JMC.xlsx', sheet = "Key"), by = c("fruit" = "fruit")) %>%
+  inner_join(cld_df, by = c("fruit"))
+
+
+mean_relationship <- dev_data5 %>% 
+  inner_join(starve4, by = c("fruit"))
+
+mean_relationship
+ggplot(mean_relationship, aes(x = mean.x, y = mean.y, col = fruitname.x, shape = fruitname.x, group = groupinggroup)) + 
+  geom_point(size = 6) + 
+  scale_color_manual(values = c("pink","pink","orange","yellow","yellow","dark green","magenta","magenta","green","black","tan")) +
+  scale_shape_manual(values = c(15,16,15,15,16,15,15,16,15,15,15)) +
+#  scale_linetype_identity(lwd = 3) +
+  cowplot::theme_cowplot() + 
+  labs(x = "development time (d)", y = "time to death (d)") + 
+  stat_smooth(data = mean_relationship %>% filter(groupinggroup ==1) %>% droplevels(),  method = "lm", formula = y ~ x, level = 0.95, alpha = 0)
+  stat_smooth(aes(group = 1), method = "loess", alpha = 0, col = "cyan", lwd = 5)
+ggsave('fv_cvegg_starvedev.jpg')
+
+group_1 <- mean_relationship %>% filter(groupinggroup == 1) %>% dplyr::select(mean.x) %>% unlist() %>% unname()
+group_2 <- mean_relationship %>% filter(groupinggroup == 1) %>% dplyr::select(mean.y) %>% unlist() %>% unname()
+cor.test(x = group_1, y =group_2, method = "spearman")
+
+
+group_1 <- mean_relationship %>% dplyr::select(mean.x) %>% unlist() %>% unname()
+group_2 <- mean_relationship %>% dplyr::select(mean.y) %>% unlist() %>% unname()
+cor.test(x = group_1, y =group_2, method = "spearman")
+```
+
+
+# i think this is old
+## starve data stats
+```{r}
+
+starve2 <- starve %>% 
+  rowwise() %>%
+  tidyr::separate(col = vial, into = c("fruit","treatment","replicate")) %>%
+  mutate(experiment = ifelse(replicate %in% c(1:3), "expA",ifelse(replicate %in% c(4:6), "expB",ifelse(replicate%in% c(7:9),"expC",ifelse(replicate%in%c(10:12),"expD","expE"))))) %>%
+  mutate(treatment = factor(as.character(treatment)),
+         replicate = factor(as.character(replicate)),
+         fruit  = factor(as.character(fruit)),
+          experiment = factor(as.character(experiment))
+         )
+
+metadata <- read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key") %>%
+  arrange(plot_order) %>%
+  dplyr::select(fruit) %>%
+  filter(fruit %in% levels(starve2$fruit)) %>%
+  unlist() %>% unname() %>% as.character()
+
+starve2$fruit2 <- factor(starve2$fruit, levels = metadata)
+levels(starve2$fruit2)
+
+starve2$S <- survival::Surv(starve2$variable, starve2$event)
+starve2$ft <- with(starve2, interaction(fruit, treatment))
+starve2$tf <- with(starve2, interaction(treatment, fruit))
+
+#write.csv(starve2, "~/Dropbox/fruitandveggie/starve2.csv")
+
+model_all <- pairwise_survdiff(S ~ ft, data = starve2, p.adjust.method = "BH")
+x <- starve2$ft
+levs <- levels(x)
+y <- Surv(starve2$event,rep(1,length(starve2$variable))) 
+lvl_order <- levels(x)[order(tapply(as.numeric(y)[1:length(x)], 
+                                    x, mean))]
+
+comps <- as_tibble(model_all$p.value, rownames="row") %>% 
+  tidyr::pivot_longer(-row, names_to="col", values_to="p") %>% 
+  na.omit()
+
+mycomps <- as.matrix(comps[,1:2])
+signif <- comps$p < .05
+
+clds <- multcomp:::insert_absorb(signif, 
+                                 decreasing=FALSE, 
+                                 comps=mycomps, 
+                                 lvl_order=lvl_order)
+
+cld_df <- clds$Letters %>% data.frame() %>% rename(pvals = ".") %>% mutate(fruit = rownames(.))
+colnames(cld_df)
+
+jpeg(width = 11.4, height = 10, filename = "fv_axgn_starve_km_all.jpg", units = "in", res = 300)
+plot(survfit(S ~ ft, starve2), 
+     xlim=c(0,6), 
+     col = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(color) %>%  unlist() %>% unname() %>% as.character(),
+     lty = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(lwd) %>%  unlist() %>% unname() %>% as.numeric(as.character()),
+     lwd = 3, xlab = "time (d)", ylab = "fractional survival"
+)
+legend(x=4.5, y=1, 
+       legend = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(fruitname) %>%  unlist() %>% unname() %>% as.character(),
+       col = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(color) %>%  unlist() %>% unname() %>% as.character(),
+       lty = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(lwd) %>%  unlist() %>% unname() %>% as.numeric(as.character()),
+       lwd=3, bty = "n", cex=1
+       )
+dev.off()
+
+starve3 <- starve2 %>%
+  filter(event == 1) %>%
+  group_by(ft,fruit) %>%
+  summarize(mean = mean(variable), sem = sd(variable)/sqrt(dplyr::n()), n = dplyr::n()) %>%
+  ungroup() %>%
+  inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2"), by = c("ft" = "ft")) %>%
+  inner_join(cld_df, by = c("ft" = "fruit"))
+
+starve3$fruit.x <- factor(starve3$fruit.x, levels = metadata)
+starve3$fruit.x <- factor(starve3$fruit.x, labels = data.frame(levels(starve3$fruit.x)) %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, plotname) %>% distinct() , by = c(`levels.starve3.fruit.x.` = "fruit")) %>% mutate(plotname = gsub(pattern = "\\\\n", replacement = "\n",x = plotname, perl = T)) %>% dplyr::select(plotname) %>% unlist() %>% unname())
+
+starve4 <- starve2 %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2"), by = c("ft" = "ft"))
+starve4$fruit.x <- factor(starve4$fruit.x, levels = metadata)
+levels(starve4$fruit.x)
+starve4$fruit.x <- factor(starve4$fruit.x, labels = data.frame(levels(starve4$fruit.x)) %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, plotname) %>% distinct() , by = c(`levels.starve4.fruit.x.` = "fruit")) %>% mutate(plotname = gsub(pattern = "\\\\n", replacement = "\n",x = plotname, perl = T)) %>% dplyr::select(plotname) %>% unlist() %>% unname())
+levels(starve4$fruit.x)
+
+starve4$ft <- factor(starve4$ft, levels = c(paste0(metadata,".G"),paste0(metadata, ".AX")))
+levels(starve4$ft)
+
+ggplot(starve4, aes(x = ft, y = variable, color = as.character(color))) +
+  facet_grid(~fruit.x, drop = TRUE, space = "free", scales = "free") + 
+  geom_jitter(height = 0.3, size=.3) +
+  scale_color_identity() +
+  cowplot::theme_cowplot() +
+  theme(axis.text.x = element_text(angle=90), 
+        strip.text.x = element_text(angle = 65)
+  ) +
+  geom_crossbar(data=starve3, aes(x = ft, y = mean, ymin = mean, ymax = mean), size=.5, col="black", width = .75) +
+	geom_text(data = starve3, aes(label=unlist(unname(pvals)) %>% as.character(), y=max(starve4$variable), angle = 90, hjust = 1), size=6) + 
+  labs(x = "fruit", y = "time to death (d)")
+#  scale_x_discrete(labels = c("G","AX","AX","G","AX","AX","AX","G","AX","G","AX","G","AX","G","AX","G","AX","G","AX","G","AX","G","AX","G","AX","G","AX"))
+ggsave('fv_ag_starve_all-gvalTHENaval.jpg', h=5,w=12, bg = "white")
+
+
+
+## this will give the pairwise pval differences
+# empty_df <- data.frame(group = character(), pval = numeric(), chisq = numeric())
+# 
+# i = "AS"
+# for(i in names(table(starve2$fruit))) {
+#   test_df <- starve2 %>% filter(fruit == i)
+#   kw_out <- kruskal.test(test_df$variable ~ test_df$treatment)
+#   new_df <- data.frame(group = as.character(i), pval = as.numeric(kw_out$p.value), chisq = as.numeric(kw_out$statistic))
+#   empty_df <- rbind(empty_df, new_df)
+# 
+# }
+# 
+# empty_df %>% arrange(pval)
+
+```
+
+## dev data stats - filterAX
+```{r}
+
+starve2 <- starve %>% 
+  rowwise() %>%
+  tidyr::separate(col = vial, into = c("fruit","treatment","replicate")) %>%
+  mutate(experiment = ifelse(replicate %in% c(1:3), "expA",ifelse(replicate %in% c(4:6), "expB",ifelse(replicate%in% c(7:9),"expC",ifelse(replicate%in%c(10:12),"expD","expE"))))) %>%
+  mutate(treatment = factor(as.character(treatment)),
+         replicate = factor(as.character(replicate)),
+         fruit  = factor(as.character(fruit)),
+          experiment = factor(as.character(experiment))
+         )
+
+starve2 <- starve2 %>%
+  mutate(fe = paste0(toupper(fruit), gsub(pattern = "exp",replacement = "",x = experiment))) %>%
+  filter(fe %in% toupper(c("asa","caa","fja","lia","maa","ora","spa","asb","bab","cab","mab","pob","rpb","spb","cac","coc","fjc","poc","cod","lid","tod"))) %>%
+#  filter(fruit %in% c("BA","LI","MA","RP","SP"))
+  filter(fruit %in% c("BA","CA","FJ","LI","MA","OR","RP","SP","TO")) %>%
+  droplevels()
+
+metadata <- read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key") %>%
+  arrange(plot_order) %>%
+  dplyr::select(fruit) %>%
+  filter(fruit %in% levels(starve2$fruit)) %>%
+  unlist() %>% unname() %>% as.character()
+metadata
+starve2$fruit2 <- factor(starve2$fruit, levels = metadata)
+levels(starve2$fruit2)
+
+starve2 <- starve2 %>% droplevels()
+
+starve2$S <- survival::Surv(starve2$variable, starve2$event)
+starve2$ft <- with(starve2, interaction(fruit, treatment))
+starve2$tf <- with(starve2, interaction(treatment, fruit))
+table(starve2$ft)
+model_all <- pairwise_survdiff(S ~ ft, data = starve2, p.adjust.method = "BH")
+x <- starve2$ft
+levs <- levels(x)
+y <- Surv(starve2$event,rep(1,length(starve2$variable))) 
+lvl_order <- levels(x)[order(tapply(as.numeric(y)[1:length(x)], 
+                                    x, mean))]
+
+comps <- as_tibble(model_all$p.value, rownames="row") %>% 
+  tidyr::pivot_longer(-row, names_to="col", values_to="p") %>% 
+  na.omit()
+
+mycomps <- as.matrix(comps[,1:2])
+signif <- comps$p < .05
+
+clds <- multcomp:::insert_absorb(signif, 
+                                 decreasing=FALSE, 
+                                 comps=mycomps, 
+                                 lvl_order=lvl_order)
+
+cld_df <- clds$Letters %>% data.frame() %>% rename(pvals = ".") %>% mutate(fruit = rownames(.))
+colnames(cld_df)
+
+jpeg(width = 11.4, height = 10, filename = "fv_axgen_starve_km_clean.jpg", units = "in", res = 300)
+plot(survfit(S ~ ft, starve2), 
+     xlim=c(0,6), 
+     col = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(color) %>%  unlist() %>% unname() %>% as.character(),
+     lty = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(lwd) %>%  unlist() %>% unname() %>% as.numeric(as.character()),
+     lwd = 3, xlab = "time (d)", ylab = "fractional survival"
+)
+legend(x=4.5, y=1, 
+       legend = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(fruitname) %>%  unlist() %>% unname() %>% as.character(),
+       col = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(color) %>%  unlist() %>% unname() %>% as.character(),
+       lty = read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>%  arrange(plot_order) %>%  dplyr::select(lwd) %>%  unlist() %>% unname() %>% as.numeric(as.character()),
+       lwd=3, bty = "n", cex=1
+       )
+dev.off()
+
+starve3 <- starve2 %>%
+  filter(event == 1) %>%
+  group_by(ft,fruit) %>%
+  summarize(mean = mean(variable), sem = sd(variable)/sqrt(dplyr::n()), n = dplyr::n()) %>%
+  ungroup() %>%
+  inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2"), by = c("ft" = "ft")) %>%
+  inner_join(cld_df, by = c("ft" = "fruit"))
+
+starve3$fruit.x <- factor(starve3$fruit.x, levels = metadata)
+starve3$fruit.x <- factor(starve3$fruit.x, labels = data.frame(levels(starve3$fruit.x)) %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, plotname) %>% distinct() , by = c(`levels.starve3.fruit.x.` = "fruit")) %>% mutate(plotname = gsub(pattern = "\\\\n", replacement = "\n",x = plotname, perl = T)) %>% dplyr::select(plotname) %>% unlist() %>% unname())
+
+starve4 <- starve2 %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2"), by = c("ft" = "ft"))
+starve4$fruit.x <- factor(starve4$fruit.x, levels = metadata)
+levels(starve4$fruit.x)
+starve4$fruit.x <- factor(starve4$fruit.x, labels = data.frame(levels(starve4$fruit.x)) %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, plotname) %>% distinct() , by = c(`levels.starve4.fruit.x.` = "fruit")) %>% mutate(plotname = gsub(pattern = "\\\\n", replacement = "\n",x = plotname, perl = T)) %>% dplyr::select(plotname) %>% unlist() %>% unname())
+levels(starve4$fruit.x)
+
+starve4$ft <- factor(starve4$ft, levels = c(paste0(metadata,".G"),paste0(metadata, ".AX")))
+levels(starve4$ft)
+
+ggplot(starve4, aes(x = ft, y = variable, color = as.character(color))) +
+  facet_grid(.~fruit.x, drop = TRUE, space = "free", scales = "free") + 
+  geom_jitter(height = 0.3, size=1) +
+  scale_color_identity() +
+  cowplot::theme_cowplot() +
+  theme(axis.text.x = element_blank(), 
+        strip.text.x = element_text(angle = 65)
+  ) +
+  geom_crossbar(data=starve3, aes(x = ft, y = mean, ymin = mean, ymax = mean), size=.5, col="black", width = .75) +
+	geom_text(data = starve3, aes(label=unlist(unname(pvals)) %>% as.character(), y=max(starve4$variable), angle = 90, hjust = 1), size=6) + 
+  labs(x = "fruit", y = "development time (d)")
+ggsave('fv_ag_starve_all-gvalTHENaval_clean.jpg', h=5,w=12, bg = "white")
+
+
+
+ ## this will give the pairwise pval differences
+empty_df <- data.frame(group = character(), pval = numeric(), chisq = numeric())
+
+for(i in names(table(starve2$fruit))) {
+  test_df <- starve2 %>% filter(fruit == i)
+  kw_out <- kruskal.test(test_df$variable ~ test_df$treatment)
+  new_df <- data.frame(group = as.character(i), pval = as.numeric(kw_out$p.value), chisq = as.numeric(kw_out$statistic))
+  empty_df <- rbind(empty_df, new_df)
+
+}
+
+empty_df %>% arrange(pval)
+#   group         pval       chisq
+# 1    LI 1.351081e-10 41.23320060
+# 2    BA 1.086688e-07 28.21306111
+# 3    OR 1.600608e-04 14.25000000
+# 4    FJ 7.925735e-03  7.05017858
+# 5    MA 3.502247e-02  4.44407920
+# 6    RP 5.756180e-02  3.60627844
+# 7    SP 3.315925e-01  0.94266861
+# 8    CA 8.515240e-01  0.03503421
+```
+
+
+
+
+
