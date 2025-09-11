@@ -39,6 +39,13 @@ source(file = "https://raw.githubusercontent.com/johnchaston/Gale2024/main/calcu
 ## start finding major conclusiosn to draw, write out a section, and we'll piece through it. 
 
 
+
+# questions
+# 1. Does the diets affect life history traits? yes
+# 2. do the microorganisms affect the response to life history traits? yes, plus they can be axenic on most diets
+# 3. what is the relationship between the traits when colonized by different microbes on different diets? 
+# 4. how is microbiota composition dteermiend by these? 
+
 # figure out how to analyze the data, and remember 
 
 wget -O FV_dev_JMC2.xlsx https://raw.githubusercontent.com/johnchaston/FruitAndVeggies/main/FV_dev_JMC2.xlsx
@@ -237,39 +244,39 @@ uncontaminated <- read_xlsx("FV_dev_JMC2.xlsx", sheet = "contaminated") %>%
   filter(`Axenic?` == "Y") %>% dplyr::pull(Tube)
 
 
-table(starve2$treatment)
-starve2c <- starve2 %>%
-  filter(treatment == "AX") %>%
-  filter(!vial %in% c(contaminated, uncontaminated))
-
-
-table(starve2c$vial)
-table(starve2c$fruit)
-
-table(starve2 %>% filter(treatment == "AX") %>% filter(vial %in% contaminated) %>% pull(fruit))
-
-starve2c
-
-
-vials <- unique(starve2$vial)
-
-vials[vials %in% uncontaminated]
-
-
-dim(starve2)
-
-23470 - 8008
-23470 - 14750
-11614 
-starve2
-starve2b <- starve2 %>% filter(treatment == "G") # 11614
-starve2b <- starve2 %>% filter(vial %in% uncontaminated) # 3264
-starve2b <- starve2 %>% filter(vial %in% contaminated) # 
-
-
-starve2b <- starve2 %>%
-  filter()
-
+# table(starve2$treatment)
+# starve2c <- starve2 %>%
+#   filter(treatment == "AX") %>%
+#   filter(!vial %in% c(contaminated, uncontaminated))
+# 
+# 
+# table(starve2c$vial)
+# table(starve2c$fruit)
+# 
+# table(starve2 %>% filter(treatment == "AX") %>% filter(vial %in% contaminated) %>% pull(fruit))
+# 
+# starve2c
+# 
+# 
+# vials <- unique(starve2$vial)
+# 
+# vials[vials %in% uncontaminated]
+# 
+# 
+# dim(starve2)
+# 
+# 23470 - 8008
+# 23470 - 14750
+# 11614 
+# starve2
+# starve2b <- starve2 %>% filter(treatment == "G") # 11614
+# starve2b <- starve2 %>% filter(vial %in% uncontaminated) # 3264
+# starve2b <- starve2 %>% filter(vial %in% contaminated) # 3136
+# 
+# 
+# starve2b <- starve2 %>%
+#   filter()
+# 
 
 
 model_all <- pairwise_survdiff(S ~ ft, data = starve2, p.adjust.method = "BH")
@@ -1175,6 +1182,116 @@ empty_df %>% arrange(pval)
 ```{r}
 data_dw_clean <- dw3 
 ```
+
+## dryweight data - filterAX
+```{r}
+
+dry_weight <- read_xlsx('Dry Weight.xlsx')
+
+dw2 <- dry_weight %>%
+  mutate(normalized_weight = `Weight (mg)`/`# of flies`) %>%
+  tidyr::separate(col = Name, into = c("Fruit","Treatment","Vial"), sep = "-", remove = F) %>%
+  dplyr::select(-Vial) %>% 
+  mutate(Fruit = factor(toupper(Fruit))) %>%
+  filter(!Fruit %in% c("BP","PA","TO","PO","FJ"), # get rid of lines with low replication or lacking both Ax and G values
+         !Name == "BA-AX-2" # get rid of this one massive outlier
+         ) %>% droplevels()
+
+
+# here's code to filter against, etc.... 
+# starve2 <- starve2 %>%
+#   mutate(fe = paste0(toupper(fruit), gsub(pattern = "exp",replacement = "",x = experiment))) %>%
+#   filter(fe %in% toupper(c("asa","caa","fja","lia","maa","ora","spa","asb","bab","cab","mab","pob","rpb","cac","fjc","poc","cod","lid","tod", "prb","spb"))) %>%
+# #  filter(fruit %in% c("BA","LI","MA","RP","SP"))
+#   filter(fruit %in% c("BA","CA","FJ","LI","MA","OR","RP","SP","TO")) %>%
+#   droplevels()
+
+
+dw2$ft = with(dw2, interaction(Fruit,Treatment))
+
+  ## run test on interaction
+def <- kruskal.test(normalized_weight ~ ft, dw2)
+efg <- dunn.test(dw2$normalized_weight,dw2$ft, method = "bh", label = F, table=F)
+ghi <- cldList(comparison = efg$comparisons, p.value = efg$P.adjusted, threshold = 0.05)
+cld_df_counts <- ghi %>% dplyr::select(pvals = Letter, fruit = Group)
+
+# make means
+dw_mean <- dw2 %>%
+  ungroup() %>%
+  group_by(ft, Fruit) %>%
+  summarize(mean = mean(`normalized_weight`)) %>%
+  ungroup() %>%
+  inner_join(cld_df_counts, by = c("ft" = "fruit")) %>%
+  droplevels()
+
+metadata <- read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key") %>%
+  arrange(plot_order) %>%
+  dplyr::select(fruit) %>%
+  filter(fruit %in% levels(dw_mean$Fruit)) %>%
+  unlist() %>% unname() %>% as.character()
+
+dw_mean$fruit.x <- factor(dw_mean$Fruit, levels = metadata)
+dw_mean$fruit.x <- factor(dw_mean$fruit.x, labels = data.frame(levels(dw_mean$fruit.x)) %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, plotname) %>% distinct(), by = c("levels.dw_mean.fruit.x." = "fruit")) %>% mutate(plotname = gsub(pattern = "\\\\n", replacement = "\n",x = plotname, perl = T)) %>% dplyr::select(plotname) %>% unlist() %>% unname())
+dw_mean <- dw_mean %>%
+  inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, color) %>% distinct(), by = c("Fruit" = "fruit"))
+
+dw3 <- dw2 %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2"), by = c("ft" = "ft"))
+dw3$fruit.x <- factor(dw3$fruit, levels = metadata)
+levels(dw3$fruit.x)
+dw3$fruit.x <- factor(dw3$fruit.x, labels = data.frame(levels(dw3$fruit.x)) %>% inner_join(read_xlsx('~/Dropbox/fruitandveggie/FV_dev_JMC2.xlsx', sheet = "Key2") %>% dplyr::select(fruit, plotname) %>% distinct() , by = c(`levels.dw3.fruit.x.` = "fruit")) %>% mutate(plotname = gsub(pattern = "\\\\n", replacement = "\n",x = plotname, perl = T)) %>% dplyr::select(plotname) %>% unlist() %>% unname())
+levels(dw3$fruit.x)
+
+dw3$ft <- factor(dw3$ft, levels = c(paste0(metadata,".G"),paste0(metadata, ".AX")))
+levels(dw3$ft)
+
+ggplot(dw3, aes(x = ft, y = normalized_weight, color = as.character(color))) +
+  facet_grid(.~fruit.x, drop = TRUE, space = "free", scales = "free") + 
+  geom_jitter(height = 0, size=1, width = 0.1) +
+  scale_color_identity() +
+  cowplot::theme_cowplot() +
+  theme(axis.text.x = element_blank(), 
+        strip.text.x = element_text(angle = 65)
+  ) +
+  geom_crossbar(data=dw_mean, aes(x = ft, y = mean, ymin = mean, ymax = mean), size=.5, col="black", width = .75) +
+	geom_text(data = dw_mean, aes(label=unlist(unname(pvals)) %>% as.character(), y=0.43, angle = 90, hjust = 1), size=6) + 
+  labs(x = "fruit", y = "flies per vial") + 
+  ylim(c(0,.43))
+ggsave('fv_ag_dw_all-gvalTHENaval_clean.jpg', h=5,w=12, bg = "white")
+
+## this will give the pairwise pval differences
+empty_df <- data.frame(group = character(), pval = numeric(), chisq = numeric())
+
+i = "AS"
+for(i in names(table(dw3$Fruit))) {
+  test_df <- dw3 %>% filter(Fruit == i)
+  kw_out <- kruskal.test(test_df$normalized_weight ~ test_df$treatment)
+  new_df <- data.frame(group = as.character(i), pval = as.numeric(kw_out$p.value), chisq = as.numeric(kw_out$statistic))
+  empty_df <- rbind(empty_df, new_df)
+
+}
+
+empty_df %>% arrange(pval)
+#    group       pval       chisq
+# 1     LI 0.08897301 2.892857143
+# 2     CL 0.11984616 2.419330289
+# 3     SP 0.14164469 2.160000000
+# 4     CA 0.17629637 1.828571429
+# 5     PR 0.53141570 0.391683708
+# 6     OR 0.53702438 0.381082666
+# 7     RP 0.56770917 0.326530612
+# 8     BA 0.66412226 0.188554698
+# 9     CO 0.66500554 0.187500000
+# 10    MA 0.87074564 0.026475013
+# 11    AS 0.92623564 0.008571429
+
+```
+
+## store dw data
+```{r}
+data_dw_clean <- dw3 
+```
+
+
 
 # Trait correlations - Gn/Ax
 ##  merge starve, dev, and dw by vial - all 
